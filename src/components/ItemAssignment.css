@@ -1,0 +1,215 @@
+.item-assignment {
+  padding: 2rem;
+  animation: slideInUp 0.5s ease-out;
+}
+
+.item-assignment h2 {
+  color: #059669;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  animation: slideInDown 0.6s ease-out;
+}
+
+.add-item {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  flex-wrap: wrap;
+  animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.items-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ecfdf3;
+  border: 1px solid #d1fae5;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  max-width: 800px;
+  margin: 0 auto 1.25rem;
+  color: #065f46;
+  font-weight: 600;
+  animation: slideInUp 0.5s ease-out 0.2s both;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+}
+
+.add-item input[type="text"] {
+  flex: 2;
+  min-width: 200px;
+  padding: 0.75rem;
+  border: 2px solid #d1fae5;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.add-item input[type="number"] {
+  flex: 1;
+  min-width: 100px;
+  padding: 0.75rem;
+  border: 2px solid #d1fae5;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.add-item input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
+.items-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 340px));
+  gap: 1rem;
+  max-width: 1080px;
+  margin: 0 auto;
+  justify-content: center;
+  grid-auto-rows: 1fr;
+  animation: fadeIn 0.6s ease-out 0.3s both;
+}
+
+.item-card {
+  background: white;
+  border: 2px solid #d1fae5;
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  animation: scaleIn 0.4s ease-out;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.item-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+}
+
+.item-header {
+  display: grid;
+  grid-template-columns: 1fr 110px 36px;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  animation: slideInUp 0.4s ease-out;
+}
+
+.item-description-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.item-description-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.item-price-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #059669;
+  text-align: right;
+  transition: all 0.2s ease;
+}
+
+.item-price-input:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.item-card .remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.item-card .remove-btn:hover {
+  background: #f3f4f6;
+  color: #ef4444;
+  transform: scale(1.2) rotate(90deg);
+}
+
+.item-participants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: slideInUp 0.4s ease-out 0.1s both;
+}
+
+.assign-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.participant-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.participant-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid;
+  border-radius: 20px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: scaleIn 0.3s ease-out;
+}
+
+.participant-btn:hover {
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.participant-btn.assigned {
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.shared-badge {
+  font-size: 0.75rem;
+  color: #10b981;
+  font-weight: 600;
+  align-self: flex-start;
+  animation: slideInUp 0.3s ease-out;
+}
+
+@media (max-width: 768px) {
+  .items-list {
+    grid-template-columns: 1fr;
+  }
+
+  .item-header {
+    grid-template-columns: 1fr 110px 36px;
+  }
+}

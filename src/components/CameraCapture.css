@@ -1,0 +1,84 @@
+.camera-capture {
+  text-align: center;
+  padding: 2rem;
+  animation: slideInUp 0.5s ease-out;
+}
+
+.camera-capture h2 {
+  color: #059669;
+  margin-bottom: 1.5rem;
+  animation: slideInDown 0.6s ease-out;
+}
+
+.upload-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 320px;
+  margin: 0 auto;
+  animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.upload-options .btn {
+  animation: slideInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation-fill-mode: both;
+  width: 100%;
+}
+
+.upload-options .btn:nth-child(1) { animation-delay: 0.1s; }
+.upload-options .btn:nth-child(2) { animation-delay: 0.2s; }
+
+.camera-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  animation: scaleIn 0.5s ease-out;
+}
+
+.camera-container video {
+  width: 100%;
+  max-width: 500px;
+  border-radius: 12px;
+  border: 3px solid #10b981;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 1rem;
+  animation: slideInUp 0.4s ease-out;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .camera-capture {
+    padding: 1rem 0.5rem;
+  }
+
+  .camera-capture h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .upload-options {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+
+  .camera-container video {
+    max-width: 100%;
+    border-width: 2px;
+  }
+
+  .camera-controls {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .camera-controls .btn {
+    width: 100%;
+  }
+}

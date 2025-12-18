@@ -9,16 +9,6 @@ import { processReceiptImage, parseReceiptText } from './utils/ocrProcessor';
 import { calculateParticipantTotals, generateId } from './utils/calculations';
 import './App.css';
 
-const sampleReceiptText = `
-Fresh Greens Market
-Avocado Toast       $12.50
-Iced Matcha          $5.25
-Veggie Bowl         $14.00
-Sparkling Water      $3.00
-Subtotal            $34.75
-Tax                  $2.78
-Total               $40.53
-`;
 
 const STORAGE_KEY = 'splitbuddy_history';
 const DETAILED_SPLITS_KEY = 'splitbuddy_detailed_splits';
@@ -28,8 +18,7 @@ function App() {
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [taxPercent, setTaxPercent] = useState(0);
   const [tip, setTip] = useState(0);
-  const [scannedSubtotal, setScannedSubtotal] = useState<number | undefined>(undefined);
-  const [scannedTotal, setScannedTotal] = useState<number | undefined>(undefined);
+  // Removed unused scanned subtotal/total state
   const [customTotals, setCustomTotals] = useState<Record<string, number>>({});
   const [savedNames, setSavedNames] = useState<string[]>([]);
   const [splitHistory, setSplitHistory] = useState<SplitRecord[]>([]);
@@ -106,8 +95,7 @@ function App() {
     setTaxPercent(0);
     setTip(0);
 
-    setScannedSubtotal(parsedData.subtotal);
-    setScannedTotal(parsedData.total);
+    // scanned values not stored; participants set next
 
     setCurrentStep('participants');
   };
@@ -126,15 +114,6 @@ function App() {
     }
   };
 
-  const handleSampleReceipt = () => {
-    setIsProcessing(true);
-    try {
-      const parsedData = parseReceiptText(sampleReceiptText);
-      applyParsedReceipt(parsedData);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleCustomTotalChange = (participantId: string, value: number) => {
     setCustomTotals(prev => ({ ...prev, [participantId]: value }));
@@ -153,8 +132,6 @@ function App() {
     setItems([]);
     setTaxPercent(0);
     setTip(0);
-    setScannedSubtotal(undefined);
-    setScannedTotal(undefined);
     setCustomTotals({});
     setCurrentStep('scan');
   };

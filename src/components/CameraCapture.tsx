@@ -12,19 +12,50 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const startCamera = async () => {
+  const openDeviceCameraFallback = () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsCameraActive(true);
+      if (fileInputRef.current) {
+        fileInputRef.current.setAttribute('capture', 'environment');
+        fileInputRef.current.click();
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please use file upload instead.');
+    } catch {
+      // no-op
     }
+  };
+
+  const startCamera = async () => {
+    const supportsGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    if (!supportsGUM) {
+      openDeviceCameraFallback();
+      return;
+    }
+
+    const constraintsList: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: 'environment' } } as MediaTrackConstraints },
+      { video: { facingMode: 'environment' } },
+      { video: true },
+    ];
+
+    for (const constraints of constraintsList) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // iOS Safari inline playback workaround
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play().catch(() => {});
+          setIsCameraActive(true);
+          return;
+        }
+      } catch (error) {
+        // Try next constraints if available
+        continue;
+      }
+    }
+
+    // If all attempts failed, fallback to device camera via input
+    alert('Unable to access camera directly. Opening device camera picker instead.');
+    openDeviceCameraFallback();
   };
 
   const stopCamera = () => {
@@ -81,6 +112,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            capture="environment"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />

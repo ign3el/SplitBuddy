@@ -8,9 +8,16 @@ interface CameraCaptureProps {
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, onFileSelect }) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isIOSStandalone = () => {
+    const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (navigator as any).standalone === true;
+    return isiOS && isStandalone;
+  };
 
   const openDeviceCameraFallback = () => {
     try {
@@ -24,8 +31,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
   };
 
   const startCamera = async () => {
+    // iOS PWA standalone sometimes blocks getUserMedia; prefer device camera picker
+    if (isIOSStandalone()) {
+      setCameraMessage('On iOS installed apps, direct camera access can be limited. Opening the device camera instead.');
+      openDeviceCameraFallback();
+      return;
+    }
+
     const supportsGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     if (!supportsGUM) {
+      setCameraMessage('Your browser does not support direct camera access. Please use the device camera picker.');
       openDeviceCameraFallback();
       return;
     }
@@ -47,14 +62,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
           setIsCameraActive(true);
           return;
         }
-      } catch (error) {
+      } catch (error: any) {
         // Try next constraints if available
+        setCameraMessage(error?.name === 'NotAllowedError'
+          ? 'Camera permission denied. Please allow access or use the device camera option.'
+          : 'Unable to access camera directly. Trying alternative methods...');
         continue;
       }
     }
 
     // If all attempts failed, fallback to device camera via input
-    alert('Unable to access camera directly. Opening device camera picker instead.');
+    setCameraMessage('Unable to access camera directly. Opening device camera picker instead.');
     openDeviceCameraFallback();
   };
 
@@ -108,6 +126,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
           <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
             📁 Upload Image
           </button>
+          <button onClick={openDeviceCameraFallback} className="btn btn-secondary">
+            📱 Use Device Camera
+          </button>
+          {cameraMessage && (
+            <div className="camera-error">{cameraMessage}</div>
+          )}
           <input
             ref={fileInputRef}
             type="file"

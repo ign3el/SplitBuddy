@@ -65,3 +65,36 @@ export interface OCRResult {
   text: string;
   confidence: number;
 }
+
+// Authentication & Subscription types
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  createdAt: string;
+}
+
+export interface SubscriptionPlan {
+  tier: 'free' | 'pro';
+  maxScansPerMonth: number;
+  price?: number; // in cents, e.g., 499 = $4.99
+  features: string[];
+}
+
+export interface SubscriptionState {
+  isLoggedIn: boolean;
+  user?: User;
+  isPro: boolean;
+  scansUsedThisMonth: number;
+  maxScansPerMonth: number;
+  monthResetDate: string; // ISO date
+}
+
+export interface SubscriptionContextType extends SubscriptionState {
+  login: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, name: string, password: string) => Promise<void>;
+  logout: () => void;
+  upgradeToPro: (paymentToken: string) => Promise<void>;
+  useScan: () => boolean; // Returns true if scan was allowed, false if limit exceeded
+  resetMonthlyScans: () => void;
+}

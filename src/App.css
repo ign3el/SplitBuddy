@@ -48,7 +48,26 @@ body {
   align-items: center;
   max-width: 1200px;
   margin: 0 auto;
-  gap: 2rem;
+  width: 100%;
+}
+
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.scan-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  animation: slideInRight 0.7s ease-out;
 }
 
 .app-header h1 {

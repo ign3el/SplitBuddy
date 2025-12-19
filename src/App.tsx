@@ -4,21 +4,54 @@ import { ParticipantManager } from './components/ParticipantManager';
 import { ItemAssignment } from './components/ItemAssignment';
 import { Results } from './components/Results';
 import { SplitHistory } from './components/SplitHistory';
+import { Auth } from './components/Auth';
+import { Pricing } from './components/Pricing';
+import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
+import { AdWrapper } from './components/AdWrapper';
 import type { Participant, ReceiptItem, SplitRecord, DetailedSplit } from './types';
 import { processReceiptImages, parseReceiptText } from './utils/ocrProcessor';
 import { calculateParticipantTotals, generateId } from './utils/calculations';
+import { checkAccess } from './utils/accessControl';
 import './App.css';
-
 
 const STORAGE_KEY = 'splitbuddy_history';
 const DETAILED_SPLITS_KEY = 'splitbuddy_detailed_splits';
 
-function App() {
+function AppContent() {
+  const subscription = useSubscription();
+  const [showPricingRedirect, setShowPricingRedirect] = useState(false);
+
+  // Show auth if not logged in
+  if (!subscription.isLoggedIn) {
+    return <Auth />;
+  }
+
+  // Show pricing if redirected from access denial
+  if (showPricingRedirect) {
+    return (
+      <div className="app">
+        <button
+          className="back-to-app-btn"
+          onClick={() => setShowPricingRedirect(false)}
+          style={{ position: 'fixed', top: '1rem', left: '1rem', zIndex: 1000 }}
+        >
+          ← Back to App
+        </button>
+        <Pricing />
+      </div>
+    );
+  }
+
+  // Otherwise show main app
+  return <AppMainContent onPricingRedirect={() => setShowPricingRedirect(true)} />;
+}
+
+function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }) {
+  const subscription = useSubscription();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [taxPercent, setTaxPercent] = useState(0);
   const [tip, setTip] = useState(0);
-  // Removed unused scanned subtotal/total state
   const [customTotals, setCustomTotals] = useState<Record<string, number>>({});
   const [savedNames, setSavedNames] = useState<string[]>([]);
   const [splitHistory, setSplitHistory] = useState<SplitRecord[]>([]);
@@ -101,11 +134,22 @@ function App() {
   };
 
   const handleImagesProcess = async (files: File[]) => {
+    // Check access before OCR
+    const accessResult = checkAccess('OCR', subscription);
+    if (!accessResult.allowed) {
+      console.log('OCR access denied:', accessResult.reason);
+      onPricingRedirect();
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const ocrResult = await processReceiptImages(files);
       const parsedData = parseReceiptText(ocrResult.text);
       applyParsedReceipt(parsedData);
+
+      // Count the scan
+      subscription.useScan();
     } catch (error) {
       console.error('Error processing images:', error);
       alert('Failed to process receipts. Please try again or add items manually.');
@@ -202,6 +246,7 @@ function App() {
 
   const mismatchAmount = finalSum - expectedTotal;
   const hasMismatch = Math.abs(mismatchAmount) > 0.01;
+  const scansRemaining = subscription.maxScansPerMonth - subscription.scansUsedThisMonth;
 
   return (
     <div className="app">
@@ -211,15 +256,29 @@ function App() {
             <h1>🧾 SplitBuddy</h1>
             <p>Smart bill splitting made easy</p>
           </div>
-          {splitHistory.length > 0 && (
-            <button 
-              className="history-btn"
-              onClick={() => setShowHistory(true)}
-              title="View split history"
+          <div className="header-actions">
+            {!subscription.isPro && (
+              <div className="scan-badge">
+                📸 {scansRemaining}/{subscription.maxScansPerMonth} scans
+              </div>
+            )}
+            {splitHistory.length > 0 && (
+              <button
+                className="history-btn"
+                onClick={() => setShowHistory(true)}
+                title="View split history"
+              >
+                📊 History ({splitHistory.length})
+              </button>
+            )}
+            <button
+              className="btn btn-secondary"
+              onClick={() => subscription.logout()}
+              title="Logout"
             >
-              📊 History ({splitHistory.length})
+              Logout
             </button>
-          )}
+          </div>
         </div>
       </header>
 
@@ -329,6 +388,8 @@ function App() {
         )}
       </main>
 
+      <AdWrapper position="bottom" />
+
       <footer className="app-footer">
         <p>Made with 💚 by IgN3eL</p>
       </footer>
@@ -344,4 +405,13 @@ function App() {
   );
 }
 
+function App() {
+  return (
+    <SubscriptionProvider>
+      <AppContent />
+    </SubscriptionProvider>
+  );
+}
+
 export default App;
+

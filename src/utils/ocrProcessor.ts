@@ -6,7 +6,7 @@ const roundToTwo = (value: number): number => {
 };
 
 // Basic image preprocessing to improve OCR on receipts
-const fileToCanvas = async (imageFile: File | string): Promise<HTMLCanvasElement> => {
+const fileToCanvas = async (imageFile: File | string, rotateDeg = 0): Promise<HTMLCanvasElement> => {
   const url = typeof imageFile === 'string' ? imageFile : URL.createObjectURL(imageFile);
   await new Promise<void>((resolve, reject) => {
     const img = new Image();
@@ -18,18 +18,29 @@ const fileToCanvas = async (imageFile: File | string): Promise<HTMLCanvasElement
       const height = Math.max(1, Math.floor(img.height * scale));
 
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      // Account for rotation by expanding canvas
+      const rad = (rotateDeg * Math.PI) / 180;
+      const sin = Math.abs(Math.sin(rad));
+      const cos = Math.abs(Math.cos(rad));
+      const rW = Math.floor(width * cos + height * sin);
+      const rH = Math.floor(height * cos + width * sin);
+
+      canvas.width = rW;
+      canvas.height = rH;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         reject(new Error('Canvas context not available'));
         return;
       }
 
-      // Draw image
+      // Draw rotated image centered
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, width, height);
+      ctx.translate(rW / 2, rH / 2);
+      ctx.rotate(rad);
+      ctx.drawImage(img, -width / 2, -height / 2, width, height);
+      ctx.rotate(-rad);
+      ctx.translate(-rW / 2, -rH / 2);
 
       // Enhance: grayscale + contrast boost + Otsu binarization
       const imageData = ctx.getImageData(0, 0, width, height);
@@ -96,7 +107,21 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
   const worker = await createWorker('eng');
 
   try {
-    const canvas = await fileToCanvas(imageFile);
+    // Try several small deskew angles and pick the best
+    const angles = [-6, -3, 0, 3, 6];
+    let best = { angle: 0, score: -Infinity, canvas: await fileToCanvas(imageFile, 0) };
+    for (const angle of angles) {
+      const c = await fileToCanvas(imageFile, angle);
+      const quick = await (worker as any).recognize(c, {
+        preserve_interword_spaces: 1,
+        tessedit_pageseg_mode: 6,
+        user_defined_dpi: 300,
+      });
+      const textLen = (quick.data.text || '').trim().length;
+      const score = (quick.data.confidence ?? 0) + Math.min(textLen / 50, 20); // blend confidence and length
+      if (score > best.score) best = { angle, score, canvas: c };
+    }
+    const canvas = best.canvas;
     let { data } = await (worker as any).recognize(canvas, {
       preserve_interword_spaces: 1,
       tessedit_pageseg_mode: 6,
@@ -115,6 +140,8 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
         tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.$-:,/% ' ,
       })).data;
     }
+
+
     if (((data.text || '').trim().length < 10) || (data.confidence ?? 0) < 45) {
       data = (await (worker as any).recognize(canvas, {
         preserve_interword_spaces: 1,
@@ -140,6 +167,21 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
   } finally {
     await worker.terminate();
   }
+};
+
+export const processReceiptImages = async (imageFiles: Array<File | string>): Promise<OCRResult> => {
+  // Process multiple images by running the single-image pipeline and concatenating results
+  let combinedText = '';
+  const confidences: number[] = [];
+  for (const file of imageFiles) {
+    const single = await processReceiptImage(file);
+    if (single.text) {
+      combinedText += (combinedText ? '\n' : '') + single.text;
+      if (typeof single.confidence === 'number') confidences.push(single.confidence);
+    }
+  }
+  const avgConfidence = confidences.length ? (confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
+  return { text: combinedText, confidence: avgConfidence };
 };
 
 export const parseReceiptText = (text: string): { items: Array<{ description: string; price: number }>, subtotal?: number, tax?: number, total?: number } => {

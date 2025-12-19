@@ -2,13 +2,15 @@ import { useState, useRef } from 'react';
 import './CameraCapture.css';
 
 interface CameraCaptureProps {
-  onImageCapture: (imageFile: File) => void;
-  onFileSelect: (file: File) => void;
+  onFileSelect?: (file: File) => void;
+  onFilesProcess?: (files: File[]) => void;
 }
 
-export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, onFileSelect }) => {
+export const CameraCapture: React.FC<CameraCaptureProps> = ({ onFileSelect, onFilesProcess }) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
+  const [showTips, setShowTips] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +101,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], 'receipt.jpg', { type: 'image/jpeg' });
-            onImageCapture(file);
+            setQueuedFiles(prev => [...prev, file]);
             stopCamera();
           }
         }, 'image/jpeg');
@@ -110,7 +112,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onFileSelect(file);
+      setQueuedFiles(prev => [...prev, file]);
+      if (onFileSelect) onFileSelect(file);
     }
   };
 
@@ -126,6 +129,38 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
           <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
             📁 Upload Image
           </button>
+          <div className="queue-info">
+            <span>Photos added: {queuedFiles.length}</span>
+            {queuedFiles.length > 0 && (
+              <div className="queue-actions">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => onFilesProcess && onFilesProcess(queuedFiles)}
+                >
+                  ⚙️ Process All Photos
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setQueuedFiles([])}
+                >
+                  🧹 Clear
+                </button>
+              </div>
+            )}
+          </div>
+          <button className="btn btn-secondary" onClick={() => setShowTips(v => !v)}>
+            ℹ️ OCR Tips
+          </button>
+          {showTips && (
+            <div className="ocr-tips">
+              <ul>
+                <li>Place receipt flat with even lighting.</li>
+                <li>Fill the frame; avoid tiny text.</li>
+                <li>Avoid strong shadows and angles.</li>
+                <li>Capture long receipts in multiple sections.</li>
+              </ul>
+            </div>
+          )}
           {cameraMessage && (
             <div className="camera-error">{cameraMessage}</div>
           )}

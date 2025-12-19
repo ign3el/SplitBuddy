@@ -5,7 +5,7 @@ import { ItemAssignment } from './components/ItemAssignment';
 import { Results } from './components/Results';
 import { SplitHistory } from './components/SplitHistory';
 import type { Participant, ReceiptItem, SplitRecord, DetailedSplit } from './types';
-import { processReceiptImage, parseReceiptText } from './utils/ocrProcessor';
+import { processReceiptImage, processReceiptImages, parseReceiptText } from './utils/ocrProcessor';
 import { calculateParticipantTotals, generateId } from './utils/calculations';
 import './App.css';
 
@@ -109,6 +109,20 @@ function App() {
     } catch (error) {
       console.error('Error processing image:', error);
       alert('Failed to process receipt. Please try again or add items manually.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImagesProcess = async (files: File[]) => {
+    setIsProcessing(true);
+    try {
+      const ocrResult = await processReceiptImages(files);
+      const parsedData = parseReceiptText(ocrResult.text);
+      applyParsedReceipt(parsedData);
+    } catch (error) {
+      console.error('Error processing images:', error);
+      alert('Failed to process receipts. Please try again or add items manually.');
     } finally {
       setIsProcessing(false);
     }
@@ -241,8 +255,7 @@ function App() {
         {currentStep === 'scan' && (
           <div className="step-content">
             <CameraCapture 
-              onImageCapture={handleImageProcess}
-              onFileSelect={handleImageProcess}
+              onFilesProcess={handleImagesProcess}
             />
             <div className="scan-secondary-actions">
               <button 

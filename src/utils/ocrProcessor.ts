@@ -31,10 +31,11 @@ const fileToCanvas = async (imageFile: File | string): Promise<HTMLCanvasElement
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Enhance: grayscale + contrast boost
+      // Enhance: grayscale + contrast boost + Otsu binarization
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
       const contrast = 1.25; // moderate contrast boost
+      const histogram = new Array<number>(256).fill(0);
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
         const g = data[i + 1];
@@ -44,7 +45,40 @@ const fileToCanvas = async (imageFile: File | string): Promise<HTMLCanvasElement
         // contrast adjustment
         gray = (gray - 128) * contrast + 128;
         if (gray < 0) gray = 0; if (gray > 255) gray = 255;
-        data[i] = data[i + 1] = data[i + 2] = gray;
+        const gi = gray | 0;
+        histogram[gi]++;
+        data[i] = data[i + 1] = data[i + 2] = gi;
+      }
+
+      // Otsu threshold
+      const total = width * height;
+      let sum = 0;
+      for (let t = 0; t < 256; t++) sum += t * histogram[t];
+      let sumB = 0;
+      let wB = 0;
+      let wF = 0;
+      let varMax = 0;
+      let threshold = 128;
+      for (let t = 0; t < 256; t++) {
+        wB += histogram[t];
+        if (wB === 0) continue;
+        wF = total - wB;
+        if (wF === 0) break;
+        sumB += t * histogram[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const between = wB * wF * (mB - mF) * (mB - mF);
+        if (between > varMax) {
+          varMax = between;
+          threshold = t;
+        }
+      }
+
+      // Apply binarization
+      for (let i = 0; i < data.length; i += 4) {
+        const v = data[i];
+        const bw = v > threshold ? 255 : 0;
+        data[i] = data[i + 1] = data[i + 2] = bw;
       }
       ctx.putImageData(imageData, 0, 0);
 
@@ -67,6 +101,7 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
       preserve_interword_spaces: 1,
       tessedit_pageseg_mode: 6,
       user_defined_dpi: 300,
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.$-:,/% ' ,
     });
 
     // Fallback attempts if result seems empty/low confidence
@@ -77,6 +112,7 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
         preserve_interword_spaces: 1,
         tessedit_pageseg_mode: 4,
         user_defined_dpi: 300,
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.$-:,/% ' ,
       })).data;
     }
     if (((data.text || '').trim().length < 10) || (data.confidence ?? 0) < 45) {
@@ -84,6 +120,16 @@ export const processReceiptImage = async (imageFile: File | string): Promise<OCR
         preserve_interword_spaces: 1,
         tessedit_pageseg_mode: 11,
         user_defined_dpi: 300,
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.$-:,/% ' ,
+      })).data;
+    }
+    if (((data.text || '').trim().length < 10) || (data.confidence ?? 0) < 45) {
+      // Try orientation/script detection
+      data = (await (worker as any).recognize(canvas, {
+        preserve_interword_spaces: 1,
+        tessedit_pageseg_mode: 0,
+        user_defined_dpi: 300,
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.$-:,/% ' ,
       })).data;
     }
 

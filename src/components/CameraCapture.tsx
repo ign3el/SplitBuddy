@@ -126,9 +126,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onImageCapture, on
           <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
             📁 Upload Image
           </button>
-          <button onClick={openDeviceCameraFallback} className="btn btn-secondary">
-            📱 Use Device Camera
-          </button>
           {cameraMessage && (
             <div className="camera-error">{cameraMessage}</div>
           )}

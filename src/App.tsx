@@ -5,7 +5,7 @@ import { ItemAssignment } from './components/ItemAssignment';
 import { Results } from './components/Results';
 import { SplitHistory } from './components/SplitHistory';
 import type { Participant, ReceiptItem, SplitRecord, DetailedSplit } from './types';
-import { processReceiptImage, processReceiptImages, parseReceiptText } from './utils/ocrProcessor';
+import { processReceiptImages, parseReceiptText } from './utils/ocrProcessor';
 import { calculateParticipantTotals, generateId } from './utils/calculations';
 import './App.css';
 
@@ -98,20 +98,6 @@ function App() {
     // scanned values not stored; participants set next
 
     setCurrentStep('participants');
-  };
-
-  const handleImageProcess = async (imageFile: File) => {
-    setIsProcessing(true);
-    try {
-      const ocrResult = await processReceiptImage(imageFile);
-      const parsedData = parseReceiptText(ocrResult.text);
-      applyParsedReceipt(parsedData);
-    } catch (error) {
-      console.error('Error processing image:', error);
-      alert('Failed to process receipt. Please try again or add items manually.');
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
   const handleImagesProcess = async (files: File[]) => {

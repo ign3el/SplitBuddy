@@ -3,14 +3,13 @@
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "functions": {
-    "api/index.js": {
+    "api/[...slug].js": {
       "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/verify", "destination": "/api" },
-    { "source": "/reset", "destination": "/api" },
+    { "source": "/verify", "destination": "/api/verify" },
+    { "source": "/reset", "destination": "/api/reset" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

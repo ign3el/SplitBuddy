@@ -194,7 +194,10 @@ async function ensureSchema() {
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: CORS_ORIGIN || true }));
+app.use(cors({ 
+  origin: CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com',
+  credentials: true 
+}));
 
 app.get('/api/ping', async (_req, res) => {
   if (!pool) return res.status(503).json({ ok: false, message: 'Database not configured' });

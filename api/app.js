@@ -209,6 +209,10 @@ app.get('/api/ping', async (_req, res) => {
   }
 });
 
+app.get('/api/version', (_req, res) => {
+  res.json({ ok: true, service: 'api', runtime: process.version, timestamp: new Date().toISOString() });
+});
+
 app.get('/api/health', async (_req, res) => {
   if (!pool) return res.status(503).json({ status: 'unhealthy', database: 'not_configured' });
   try {

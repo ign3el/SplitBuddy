@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "proxy": "http://backend:3003",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
     "bcryptjs": "^2.4.3",

@@ -4,7 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { createPool } from 'mysql2/promise';
+import { getPool } from './db.js';
 import { v4 as uuidv4 } from 'uuid';
 import nodemailer from 'nodemailer';
 
@@ -34,16 +34,7 @@ if (!hasRequiredEnv && process.env.NODE_ENV !== 'development') {
   console.warn('Missing required env vars. Server may not function correctly.');
 }
 
-const pool = hasRequiredEnv ? createPool({
-  host: DB_HOST,
-  port: Number(DB_PORT),
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME,
-  ssl: DB_SSL_REQUIRED === 'true' ? { rejectUnauthorized: false } : undefined,
-  waitForConnections: true,
-  connectionLimit: 10,
-}) : null;
+const pool = getPool();
 
 const brand = {
   primary: '#10b981',

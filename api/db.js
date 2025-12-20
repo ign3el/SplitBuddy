@@ -9,19 +9,34 @@ const {
   DB_PASSWORD,
   DB_NAME,
   DB_SSL_REQUIRED,
+  MYSQLHOST,
+  MYSQLHOSTNAME,
+  MYSQLPORT,
+  MYSQLUSER,
+  MYSQLPASSWORD,
+  MYSQLDATABASE,
+  MYSQL_DB,
+  MYSQL_DATABASE,
+  MYSQL_SSL,
 } = process.env;
 
 function createMysqlPool() {
-  if (!DB_HOST || !DB_PORT || !DB_USER || !DB_PASSWORD || !DB_NAME) {
+  const host = DB_HOST || MYSQLHOST || MYSQLHOSTNAME || process.env.MYSQL_HOST;
+  const port = Number(DB_PORT || MYSQLPORT || process.env.MYSQL_PORT || 3306);
+  const user = DB_USER || MYSQLUSER || process.env.MYSQL_USER;
+  const password = DB_PASSWORD || MYSQLPASSWORD || process.env.MYSQL_PASSWORD;
+  const database = DB_NAME || MYSQLDATABASE || MYSQL_DB || MYSQL_DATABASE || process.env.MYSQL_DATABASE;
+  const sslRequired = (DB_SSL_REQUIRED || MYSQL_SSL || '').toString().toLowerCase() === 'true';
+  if (!host || !user || !password || !database) {
     return null;
   }
   return createPool({
-    host: DB_HOST,
-    port: Number(DB_PORT),
-    user: DB_USER,
-    password: DB_PASSWORD,
-    database: DB_NAME,
-    ssl: DB_SSL_REQUIRED === 'true' ? { rejectUnauthorized: false } : undefined,
+    host,
+    port,
+    user,
+    password,
+    database,
+    ssl: sslRequired ? { rejectUnauthorized: false } : undefined,
     waitForConnections: true,
     connectionLimit: 10,
     enableKeepAlive: true,

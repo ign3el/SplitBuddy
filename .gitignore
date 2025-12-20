@@ -25,7 +25,14 @@ dist-ssr
 
 .vercel
 
-# Environment variables
+# Environment variables - NEVER commit these!
+# Contains sensitive credentials (database passwords, API keys, JWT secrets)
 .env
+.env.*
 .env.local
 .env.*.local
+!.env.example
+!.env.example.*
+
+# Production environment config is committed (contains only URLs, no secrets)
+!.env.production

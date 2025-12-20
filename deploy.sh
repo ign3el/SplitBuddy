@@ -2,6 +2,11 @@
 
 # SplitBuddy VPS Deployment Script
 # Usage: ./deploy.sh
+#
+# 🔐 SECURITY NOTE:
+# This script pulls code from Git but NEVER touches your .env file.
+# Your database credentials and secrets remain safe on the VPS.
+# The .env file is in .gitignore and stays local to your server.
 
 set -e  # Exit on error
 

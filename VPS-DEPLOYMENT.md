@@ -68,7 +68,18 @@ git clone https://github.com/ign3el/SplitBuddy.git .
 
 ## 3. Configure Backend Environment
 
-Create `/var/www/splitbuddy/server/.env`:
+> **🔐 SECURITY WARNING - Database Credentials**
+>
+> **NEVER** store database passwords or sensitive credentials in:
+> - GitHub repository files
+> - `deploy.yml` workflow file
+> - Any files tracked by Git
+>
+> The `.env` file is listed in `.gitignore` and will **NOT** be pushed to GitHub.
+> Create this file **directly on your VPS** and it will remain safe during deployments.
+> The deployment script pulls new code but **never overwrites** your existing `.env` file.
+
+Create `/var/www/splitbuddy/server/.env` **directly on your VPS**:
 ```bash
 # Database
 DB_HOST=localhost
@@ -160,6 +171,14 @@ Make the deploy script executable:
 ```bash
 chmod +x /var/www/splitbuddy/deploy.sh
 ```
+
+> **💡 Pro Tip**: The deployment script pulls the latest code from Git but **never touches your `.env` file**.
+> Your database credentials and secrets remain safe on the VPS. The script only updates:
+> - Application code (frontend & backend)
+> - Dependencies (npm packages)
+> - Frontend build output
+>
+> Your `.env` file is protected by `.gitignore` and stays local to your VPS.
 
 To deploy updates:
 ```bash
@@ -255,16 +274,46 @@ mysql -u splitbuddy -p splitbuddy_db
 
 ## Security Best Practices
 
-1. **Use strong passwords** for MySQL and JWT_SECRET
-2. **Keep system updated**: `sudo apt update && sudo apt upgrade`
-3. **Enable fail2ban**: `sudo apt install fail2ban`
-4. **Configure firewall** properly with ufw
-5. **Regular backups** of MySQL database:
+1. **Protect Database Credentials**
+   - ⚠️ **CRITICAL**: Never commit `.env` files to Git
+   - Create `.env` files directly on the VPS
+   - The `.gitignore` file already excludes `.env` and `.env.*` files
+   - Deployment script pulls code but never touches existing `.env` files
+   - Your database password stays safe on the VPS only
+
+2. **Use strong passwords** for MySQL and JWT_SECRET
    ```bash
-   mysqldump -u splitbuddy -p splitbuddy_db > backup.sql
+   # Generate a secure JWT secret
+   openssl rand -base64 32
    ```
-6. **Monitor logs** regularly for suspicious activity
-7. **Keep SSL certificates** renewed (certbot auto-renewal should handle this)
+
+3. **Keep system updated**: `sudo apt update && sudo apt upgrade`
+
+4. **Enable fail2ban**: `sudo apt install fail2ban`
+
+5. **Configure firewall** properly with ufw
+   ```bash
+   sudo ufw allow 'Nginx Full'
+   sudo ufw allow OpenSSH
+   sudo ufw enable
+   ```
+
+6. **Regular backups** of MySQL database:
+   ```bash
+   mysqldump -u splitbuddy -p splitbuddy_db > backup_$(date +%Y%m%d).sql
+   ```
+
+7. **Monitor logs** regularly for suspicious activity
+   ```bash
+   sudo tail -f /var/log/nginx/error.log
+   sudo tail -f /var/log/auth.log
+   ```
+
+8. **Keep SSL certificates** renewed (certbot auto-renewal should handle this)
+
+9. **SSH Key Authentication Only**
+   - Disable password authentication in `/etc/ssh/sshd_config`
+   - Use SSH keys for GitHub Actions (as configured above)
 
 ## Updating the Application
 
@@ -285,6 +334,8 @@ This will:
 ### Automatic Deployment with GitHub Actions
 
 The repository includes a GitHub Actions workflow that automatically deploys to your VPS on every push to the `main` branch.
+
+> **🔒 Security Note**: GitHub Actions only deploys code changes. Your `.env` file with database credentials stays safely on the VPS and is never pushed to GitHub or modified during deployment.
 
 #### Setup GitHub Secrets
 

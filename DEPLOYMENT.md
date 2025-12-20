@@ -62,6 +62,31 @@ vercel env add SMTP_PASSWORD
 vercel env add SMTP_SECURE
 ```
 
+### Railway (Monorepo: frontend + backend)
+
+- Create a Railway project with two services:
+   - Backend service
+      - Service directory: `server`
+      - Variables: attach a MySQL plugin or set `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`
+      - The backend maps these to its own `DB_*` via Railway-aware helpers in `server/db.js`.
+      - Start command: `npm start`
+   - Frontend service
+      - Service directory: project root
+      - Build command: `npm install && npm run build`
+      - Start command: `npm run start` (serves `dist` via Vite preview on `$PORT`)
+      - Variables: set `VITE_API_BASE_URL` to the backend internal URL (e.g., `http://backend:3003` or the service’s internal hostname `http://<backend-service>.railway.internal:3003`).
+
+- Internal Networking
+   - Frontend uses `src/lib/apiClient.ts` with `VITE_API_BASE_URL` to call the backend directly, bypassing CORS.
+   - For local dev, `vite.config.ts` proxies `/api` to `http://localhost:3003`. You can override that via `VITE_API_PROXY_TARGET`.
+
+- MySQL Pooling
+   - Both backend paths (`server/db.js` and `api/db.js`) support pooling and automatically read Railway’s `MYSQL*` variables.
+
+- Notes
+   - If you prefer a single service, deploy only the backend to Railway and host the frontend on Vercel. Set `VITE_API_BASE_URL` to the Railway backend public URL.
+   - Email sending depends on SMTP variables; use `MOCK_EMAIL=true` in Railway to log email links instead.
+
 ### Step 2: Deploy to Vercel
 
 ```bash

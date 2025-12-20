@@ -268,6 +268,7 @@ mysql -u splitbuddy -p splitbuddy_db
 
 ## Updating the Application
 
+### Manual Deployment
 Simply run the deployment script:
 ```bash
 cd /var/www/splitbuddy
@@ -280,3 +281,86 @@ This will:
 3. Build frontend
 4. Deploy frontend to Nginx directory
 5. Restart backend with PM2
+
+### Automatic Deployment with GitHub Actions
+
+The repository includes a GitHub Actions workflow that automatically deploys to your VPS on every push to the `main` branch.
+
+#### Setup GitHub Secrets
+
+1. Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**
+2. Add the following repository secrets:
+
+| Secret Name | Description | Example |
+|-------------|-------------|---------|
+| `VPS_HOST` | Your VPS IP address or domain | `123.45.67.89` or `vps.ign3el.com` |
+| `VPS_USERNAME` | SSH username (usually `root` or your user) | `root` |
+| `VPS_SSH_KEY` | Private SSH key for authentication | *(see below)* |
+| `VPS_PORT` | SSH port (optional, defaults to 22) | `22` |
+
+#### Generate and Configure SSH Key
+
+On your **local machine**:
+
+```bash
+# Generate a new SSH key pair (if you don't have one)
+ssh-keygen -t ed25519 -C "github-actions-splitbuddy" -f ~/.ssh/vps_deploy_key
+
+# Copy the public key
+cat ~/.ssh/vps_deploy_key.pub
+```
+
+On your **VPS**:
+
+```bash
+# Add the public key to authorized_keys
+echo "your-public-key-here" >> ~/.ssh/authorized_keys
+
+# Set correct permissions
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+```
+
+On **GitHub**:
+
+1. Copy the **private key** content:
+   ```bash
+   cat ~/.ssh/vps_deploy_key
+   ```
+2. Add it as the `VPS_SSH_KEY` secret (copy the entire output including `-----BEGIN` and `-----END` lines)
+
+#### Test the Workflow
+
+1. Make any change to your code
+2. Commit and push to `main`:
+   ```bash
+   git add .
+   git commit -m "Test auto-deployment"
+   git push origin main
+   ```
+3. Go to **Actions** tab in your GitHub repository to watch the deployment progress
+4. Check your site after the workflow completes
+
+#### Manual Trigger
+
+You can also manually trigger deployment from GitHub:
+1. Go to **Actions** tab
+2. Select **Deploy to VPS** workflow
+3. Click **Run workflow** → **Run workflow**
+
+#### Troubleshooting GitHub Actions
+
+**SSH Connection Failed:**
+- Verify `VPS_HOST` is correct (IP or domain)
+- Check firewall allows SSH from GitHub Actions IPs
+- Ensure SSH key is added to `authorized_keys` correctly
+
+**Permission Denied:**
+- Check `VPS_USERNAME` is correct
+- Verify the user has permissions for `/var/www/splitbuddy`
+- Ensure `deploy.sh` is executable: `chmod +x /var/www/splitbuddy/deploy.sh`
+
+**Deploy Script Errors:**
+- SSH into VPS manually and run `./deploy.sh` to see detailed errors
+- Check PM2 is installed: `pm2 --version`
+- Verify all dependencies are installed

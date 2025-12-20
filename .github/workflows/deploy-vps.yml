@@ -1,0 +1,30 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Deploy SplitBuddy to VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚀 Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /var/www/splitbuddy
+            ./deploy.sh
+            
+      - name: ✅ Deployment Complete
+        run: |
+          echo "🎉 Deployment to VPS completed successfully!"
+          echo "Frontend: https://www.splitbuddy.ign3el.com"
+          echo "Backend: https://api.splitbuddy.ign3el.com"

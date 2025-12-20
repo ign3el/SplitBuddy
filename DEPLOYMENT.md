@@ -3,16 +3,98 @@
 ## Problem
 The Vercel frontend deployment cannot communicate with the backend API because the backend is not deployed. The frontend is trying to call `/api` endpoints which are unavailable on Vercel.
 
-## Architecture
-- **Frontend**: React app deployed on Vercel
-- **Backend**: Node.js/Express server (currently only running locally)
-- **Database**: MySQL hosted on Aiven Cloud
+## Solution (Updated)
 
-## Solution
+✅ **Backend can now be deployed directly to Vercel alongside the frontend!**
 
-You need to deploy the backend server to a hosting service that can run Node.js servers. Here are the recommended options:
+The backend has been converted to work as Vercel serverless functions. You can now deploy everything in one place.
 
-### Option 1: Railway.app (Recommended - Easiest)
+## Deployment Steps
+
+### Step 1: Set Environment Variables on Vercel
+
+You need to set these environment variables for your Vercel project:
+
+```bash
+vercel env add DB_HOST
+# Enter: ign3el-mysql-01-splitbuddy-ign3el.k.aivencloud.com
+
+vercel env add DB_PORT
+# Enter: 11497
+
+vercel env add DB_USER
+# Enter: avnadmin
+
+vercel env add DB_PASSWORD
+# Enter: [Get from your Aiven dashboard]
+
+vercel env add DB_NAME
+# Enter: defaultdb
+
+vercel env add DB_SSL_REQUIRED
+# Enter: true
+
+vercel env add JWT_SECRET
+# Enter: [Generate a random 32-char string, e.g., using: openssl rand -base64 32]
+
+vercel env add CORS_ORIGIN
+# Enter: https://splitbuddy-flame.vercel.app
+
+vercel env add MOCK_EMAIL
+# Enter: false
+
+vercel env add FRONTEND_URL
+# Enter: https://splitbuddy-flame.vercel.app
+
+vercel env add RESET_PUBLIC_URL
+# Enter: https://splitbuddy-flame.vercel.app
+
+vercel env add VERIFY_PUBLIC_URL
+# Enter: https://splitbuddy-flame.vercel.app
+```
+
+**Optional SMTP Settings (for email):**
+```bash
+vercel env add SMTP_HOST
+vercel env add SMTP_PORT
+vercel env add SMTP_USER
+vercel env add SMTP_PASSWORD
+vercel env add SMTP_SECURE
+```
+
+### Step 2: Deploy to Vercel
+
+```bash
+vercel --prod
+```
+
+That's it! Both frontend and backend will be deployed together.
+
+## How It Works
+
+- Frontend is built and served from `/dist`
+- Backend API runs as serverless functions at `/api/*`
+- All `/api/*` requests are routed to the serverless backend
+- MySQL database remains on Aiven Cloud
+
+## Testing
+
+After deployment:
+
+1. **Test API connectivity:**
+   - Visit `https://splitbuddy-flame.vercel.app/api/ping`
+   - Should return: `{"ok": true, "message": "MySQL reachable", ...}`
+
+2. **Test health endpoint:**
+   - Visit `https://splitbuddy-flame.vercel.app/api/health`
+   - Should return database status and environment info
+
+3. **Test login from frontend:**
+   - Go to https://splitbuddy-flame.vercel.app
+   - Try to sign up or login
+   - Check browser console (F12 -> Console) for any errors
+
+## Alternative: Deploy Backend Separately (Railway/Render)
 
 1. **Sign up at railway.app**
 2. **Create a new project**

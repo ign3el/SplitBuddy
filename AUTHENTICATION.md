@@ -282,3 +282,49 @@ For styling issues:
 - React Context API: https://react.dev/reference/react/useContext
 - localStorage: https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
 - TypeScript: https://www.typescriptlang.org/
+
+## Supabase Setup
+
+1) Environment variables (Vite):
+```
+VITE_SUPABASE_URL=<your-project-url>
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+2) Profiles table (SQL):
+```sql
+create table if not exists profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  name text,
+  is_pro boolean default false,
+  scans_used_this_month integer default 0,
+  max_scans_per_month integer default 5,
+  month_reset_date timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists profiles_user_id_idx on profiles(user_id);
+```
+
+3) Auth policies (example):
+```sql
+-- allow users to manage their own row
+create policy "Allow profile read" on profiles
+  for select using (auth.uid() = user_id);
+
+create policy "Allow profile upsert" on profiles
+  for insert with check (auth.uid() = user_id)
+  using (auth.uid() = user_id);
+
+create policy "Allow profile update" on profiles
+  for update using (auth.uid() = user_id);
+```
+
+4) Email templates
+- Verification: use `supabase/email-templates/verification.html` (placeholder: {{ .ConfirmationURL }})
+- Reset password: use `supabase/email-templates/reset-password.html` (placeholder: {{ .ConfirmationURL }})
+- Upload in Supabase Dashboard → Authentication → Templates.
+
+5) Redirects
+- Password reset uses `redirectTo = window.location.origin + '/reset'`. Add a reset route/page to handle the confirmed session and let the user set a new password.

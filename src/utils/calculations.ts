@@ -10,17 +10,23 @@ export const calculateParticipantTotals = (
   taxPercent: number,
   tipAmount: number
 ): ParticipantTotal[] => {
-  const itemsSubtotal = roundToTwo(items.reduce((sum, item) => sum + item.price, 0));
+  const itemsSubtotal = roundToTwo(items.reduce((sum, item) => {
+    const qty = item.quantity ?? 1;
+    return sum + item.price * qty;
+  }, 0));
   const totalTaxAmount = roundToTwo(itemsSubtotal * (taxPercent / 100));
 
   return participants.map(participant => {
     const participantItems = items.filter(item => item.assignedTo.includes(participant.id));
 
     const itemsTotal = roundToTwo(participantItems.reduce((sum, item) => {
-      if (item.isShared && item.assignedTo.length > 0) {
-        return sum + item.price / item.assignedTo.length;
+      const qty = item.quantity ?? 1;
+      const lineTotal = item.price * qty;
+      const assignmentCount = item.assignedTo.length || 1;
+      if (item.isShared && assignmentCount > 0) {
+        return sum + lineTotal / assignmentCount;
       }
-      return sum + item.price;
+      return sum + lineTotal;
     }, 0));
 
     const proportion = itemsSubtotal > 0 ? itemsTotal / itemsSubtotal : 0;

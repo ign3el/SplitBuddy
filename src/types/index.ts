@@ -8,6 +8,7 @@ export interface ReceiptItem {
   id: string;
   description: string;
   price: number;
+  quantity: number;
   assignedTo: string[]; // Participant IDs
   isShared: boolean;
 }
@@ -35,6 +36,7 @@ export interface ParticipantTotal {
 export interface SplitItemDetail {
   description: string;
   price: number;
+  quantity: number;
   isShared: boolean;
   assignedShare: number; // This person's share of this item
 }
@@ -95,6 +97,14 @@ export interface SubscriptionContextType extends SubscriptionState {
   signUp: (email: string, name: string, password: string) => Promise<void>;
   logout: () => void;
   upgradeToPro: (paymentToken: string) => Promise<void>;
-  useScan: () => boolean; // Returns true if scan was allowed, false if limit exceeded
+  useScan: () => Promise<boolean>; // Returns true if scan was allowed, false if limit exceeded
   resetMonthlyScans: () => void;
+  updateProfile: (profile: { name?: string }) => Promise<void>;
+  resendVerificationEmail: (email: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  saveSplitHistory: (records: SplitRecord[], detailedSplit: DetailedSplit) => Promise<void>;
+  getSplitHistory: () => Promise<{ records: SplitRecord[]; detailedSplits: DetailedSplit[] }>;
+  clearSplitHistory: () => Promise<void>;
+  ping: () => Promise<{ ok: boolean; message: string }>;
 }

@@ -7,6 +7,8 @@ interface SplitHistoryProps {
   records: SplitRecord[];
   detailedSplits: DetailedSplit[];
   onClose: () => void;
+  isPro: boolean;
+  onClearHistory: () => void;
 }
 
 const formatDate = (isoString: string): string => {
@@ -44,7 +46,7 @@ const groupByDate = (records: SplitRecord[]): Record<string, SplitRecord[]> => {
   return grouped;
 };
 
-export const SplitHistory: React.FC<SplitHistoryProps> = ({ records, detailedSplits, onClose }) => {
+export const SplitHistory: React.FC<SplitHistoryProps> = ({ records, detailedSplits, onClose, isPro, onClearHistory }) => {
   const [viewMode, setViewMode] = useState<'list' | 'table' | 'detailed'>('list');
   const [selectedSplitIndex, setSelectedSplitIndex] = useState<number | null>(null);
 
@@ -74,6 +76,7 @@ export const SplitHistory: React.FC<SplitHistoryProps> = ({ records, detailedSpl
   const people = tableRows.people;
 
   const handleExportCSV = () => {
+    if (!isPro) return; // Disabled for free users
     const csv = exportAsCSV(records);
     downloadCSV(csv, `split-history-${new Date().toISOString().split('T')[0]}.csv`);
   };
@@ -84,10 +87,7 @@ export const SplitHistory: React.FC<SplitHistoryProps> = ({ records, detailedSpl
     
     const secondConfirm = confirm('This is your last chance! Type confirmation is recommended.\n\nClick OK to permanently delete all history, or Cancel to keep your data.');
     if (secondConfirm) {
-      localStorage.removeItem('splitbuddy_history');
-      localStorage.removeItem('splitbuddy_detailed_splits');
-      alert('✅ History cleared successfully! The page will refresh.');
-      window.location.reload();
+      onClearHistory();
     }
   };
 
@@ -238,9 +238,11 @@ export const SplitHistory: React.FC<SplitHistoryProps> = ({ records, detailedSpl
                     🔍 Details
                   </button>
                   <button 
-                    className="btn btn-secondary"
+                    className={`btn btn-secondary ${!isPro ? 'disabled' : ''}`}
                     onClick={handleExportCSV}
-                    style={{ marginLeft: 'auto' }}
+                    style={{ marginLeft: 'auto', opacity: isPro ? 1 : 0.5, cursor: isPro ? 'pointer' : 'not-allowed' }}
+                    disabled={!isPro}
+                    title={isPro ? 'Export history as CSV' : '🔒 Upgrade to Pro to export history'}
                   >
                     💾 Export CSV
                   </button>

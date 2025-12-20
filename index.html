@@ -1,6 +1,42 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Immediately unregister service workers and clear caches in development, then reload
+      (function () {
+        var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (isLocal && 'serviceWorker' in navigator) {
+          var hasReloaded = sessionStorage.getItem('sw-cleanup-reload');
+          if (!hasReloaded) {
+            sessionStorage.setItem('sw-cleanup-reload', '1');
+            navigator.serviceWorker.getRegistrations()
+              .then(function (registrations) {
+                return Promise.all(registrations.map(function (reg) {
+                  return reg.unregister().catch(function (e) { console.log('Failed to unregister:', e); });
+                }));
+              })
+              .then(function () {
+                // Clear all caches
+                if ('caches' in window) {
+                  return caches.keys().then(function (names) {
+                    return Promise.all(names.map(function (name) {
+                      return caches.delete(name).catch(function (e) { console.log('Failed to delete cache:', name, e); });
+                    }));
+                  });
+                }
+              })
+              .then(function () {
+                console.log('Dev: SW unregistered and caches cleared, reloading');
+                location.reload();
+              })
+              .catch(function (e) { console.log('Dev: cleanup error:', e); });
+          } else {
+            sessionStorage.removeItem('sw-cleanup-reload');
+            console.log('Dev: cleanup reload complete');
+          }
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -9,27 +45,13 @@
     <meta name="theme-color" content="#10b981" />
     <meta name="description" content="Smart bill splitting app with OCR receipt scanning" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icon-192x192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/vite.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SplitBuddy" />
     
     <title>SplitBuddy - Smart Bill Splitting</title>
-    
-    <script>
-      // Register service worker for PWA
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-              console.log('ServiceWorker registered:', registration);
-            })
-            .catch((error) => {
-              console.log('ServiceWorker registration failed:', error);
-            });
-        });
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

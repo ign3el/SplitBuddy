@@ -66,6 +66,61 @@ SplitBuddy is a Progressive Web App (PWA) that can be installed on your mobile d
 
 5. Open your browser and navigate to `http://localhost:5173`
 
+## 🗄️ Backend (MySQL) Setup
+
+This project now includes a lightweight Node.js API server that connects to your cloud-hosted MySQL instance.
+
+### Configure and run the server
+
+1. Copy the example env and fill with your MySQL credentials (see screenshot):
+
+```bash
+cd server
+cp .env.example .env
+# Edit .env to set DB_PASSWORD and optional CORS_ORIGIN
+```
+
+2. Install and start the server:
+
+```bash
+npm install
+npm run dev
+```
+
+The server listens on `http://localhost:3001` and Vite proxies `/api` to it during development. First startup will ensure tables `users` and `profiles` exist.
+
+### Client configuration
+
+- Dev proxy is already set in [vite.config.ts](vite.config.ts). You can optionally set `VITE_API_BASE_URL` in `.env.local` to point to a remote API.
+
+### Available endpoints
+
+- `GET /api/ping` – health check
+- `POST /api/auth/signup` – create account, returns JWT + user/profile
+- `POST /api/auth/login` – authenticate, returns JWT + user/profile
+- `GET /api/me` – current user and profile (Authorization: Bearer <token>)
+- `PUT /api/profiles` – update profile fields (e.g., name)
+- `POST /api/profiles/scans/increment` – atomically increment scan count with monthly reset
+- `POST /api/auth/request-reset` – send a password reset link (email or console log)
+- `POST /api/auth/reset` – set a new password using the token
+
+### Password reset email
+
+- By default, the server uses `MOCK_EMAIL=true` and will log the reset link in the API terminal. Look for `[MOCK EMAIL] Password reset link:` after submitting your email.
+- To enable real emails, set the following in `server/.env`:
+
+```env
+MOCK_EMAIL=false
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_username
+SMTP_PASSWORD=your_password
+SMTP_SECURE=false
+RESET_PUBLIC_URL=https://your-api-host
+```
+
+The reset page is served by the server at `/reset?token=...`.
+
 ## 📖 How to Use
 
 ### Step 1: Scan Receipt

@@ -99,10 +99,44 @@
 .auth-error {
   background: #fee2e2;
   color: #991b1b;
-  padding: 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: 8px;
   border-left: 4px solid #dc2626;
   font-size: 0.9rem;
+}
+
+.auth-info {
+  background: #ecfdf3;
+  color: #065f46;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #10b981;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-inline {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin: 0.5rem 0 1rem 0;
+  flex-wrap: wrap;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #10b981;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .btn {

@@ -117,19 +117,21 @@ export const Results: React.FC<ResultsProps> = ({
                     <p className="no-items">No items assigned</p>
                   ) : (
                     <div className="items-list">
-                      {pt.items.map((item, idx) => {
-                        // Calculate this person's share of the item
-                        const assignmentCount = item.assignedTo.length;
-                        const sharePerPerson = item.price / assignmentCount;
+                      {pt.items.map(item => {
+                        const assignmentCount = Math.max(1, item.assignedTo.length);
+                        const quantity = item.quantity ?? 1;
+                        const lineTotal = item.price * quantity;
+                        const sharePerPerson = lineTotal / assignmentCount;
                         
                         return (
-                          <div key={idx} className="item-row">
+                          <div key={item.id} className="item-row">
                             <div className="item-info">
                               <span className="item-description">{item.description}</span>
+                              <span className="item-quantity">x{quantity}</span>
                               {item.isShared && <span className="shared-badge">shared</span>}
                             </div>
                             <div className="item-prices">
-                              <span className="item-total">AED {item.price.toFixed(2)}</span>
+                              <span className="item-total">AED {lineTotal.toFixed(2)}</span>
                               <span className="item-divider">/</span>
                               <span className="item-share">AED {sharePerPerson.toFixed(2)}</span>
                             </div>
@@ -142,7 +144,7 @@ export const Results: React.FC<ResultsProps> = ({
 
                 <div className="total-breakdown">
                   <div className="breakdown-row">
-                    <span>Items ({pt.items.length})</span>
+                    <span>Items (qty: {pt.items.reduce((sum, it) => sum + (it.quantity ?? 1), 0)})</span>
                     <span>{formatCurrency(pt.itemsTotal)}</span>
                   </div>
                   <div className="breakdown-row minor">

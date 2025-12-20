@@ -5,6 +5,41 @@ const roundToTwo = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
 
+export const compressImageFile = async (file: File, maxWidth = 1400, quality = 0.7): Promise<File> => {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Failed to load image for compression'));
+    image.src = URL.createObjectURL(file);
+  });
+
+  const scale = Math.min(1, maxWidth / img.width);
+  const width = Math.max(1, Math.floor(img.width * scale));
+  const height = Math.max(1, Math.floor(img.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas context not available for compression');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      b => {
+        if (b) resolve(b);
+        else reject(new Error('Compression failed'));
+      },
+      'image/jpeg',
+      quality
+    );
+  });
+
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '-compressed.jpg', { type: 'image/jpeg' });
+};
+
 // Basic image preprocessing to improve OCR on receipts
 const fileToCanvas = async (imageFile: File | string, rotateDeg = 0): Promise<HTMLCanvasElement> => {
   const url = typeof imageFile === 'string' ? imageFile : URL.createObjectURL(imageFile);
@@ -184,42 +219,138 @@ export const processReceiptImages = async (imageFiles: Array<File | string>): Pr
   return { text: combinedText, confidence: avgConfidence };
 };
 
-export const parseReceiptText = (text: string): { items: Array<{ description: string; price: number }>, subtotal?: number, tax?: number, total?: number } => {
-  const lines = text.split('\n').filter(line => line.trim());
-  const items: Array<{ description: string; price: number }> = [];
-  let subtotal: number | undefined;
-  let tax: number | undefined;
-  let total: number | undefined;
+/**
+ * Enhanced receipt parser with OCR noise handling and comprehensive keyword detection.
+ * Extracts total, tax, tip, and itemized line items with quantities from raw OCR text.
+ */
+export const parseReceiptData = (rawText: string): {
+  total: number;
+  tax: number;
+  tip: number;
+  items: Array<{ desc: string; quantity: number; price: number }>;
+} => {
+  // Step 1: Cleaning - Remove OCR noise
+  let cleanedText = rawText
+    .replace(/[|]/g, ' ') // Remove pipes
+    .replace(/\s+/g, ' ') // Collapse multiple spaces
+    .replace(/[o0](?=\.\d{2})/gi, '0') // Fix misread zeros near decimals
+    .replace(/[sS]\s*(?=\d)/g, '$') // Fix misread dollar signs
+    .replace(/[il]\s*(?=\d)/gi, '1') // Fix misread 1s
+    .trim();
 
-  // Regex to match prices (e.g., $12.99, 12.99, etc.)
-  const priceRegex = /\$?\d+\.\d{2}/g;
+  const lines = cleanedText.split('\n').filter(line => line.trim());
 
-  lines.forEach(line => {
+  // Price regex: matches $12.99, 12.99, AED 12.99, etc.
+  const priceRegex = /(?:AED|USD|[$€£¥])\s*(\d+\.?\d{0,2})|(\d+\.\d{2})/gi;
+
+  // Step 2: Keyword mapping for Total, Tax, Tip
+  const totalKeywords = /\b(total|amount\s*due|grand\s*total|balance|net\s*amount)\b/i;
+  const taxKeywords = /\b(sales\s*tax|tax|vat|gst)\b/i;
+  const tipKeywords = /\b(tip|gratuity|service\s*charge)\b/i;
+
+  const foundTotals: Array<{ value: number; lineIndex: number }> = [];
+  let taxValue: number | undefined;
+  let tipValue: number | undefined;
+  const items: Array<{ desc: string; quantity: number; price: number }> = [];
+  const allPrices: number[] = [];
+
+  // Step 3: Parse lines
+  lines.forEach((line, index) => {
     const lowerLine = line.toLowerCase();
-    
-    // Check for special lines
-    if (lowerLine.includes('subtotal')) {
-      const match = line.match(priceRegex);
-      if (match) subtotal = roundToTwo(parseFloat(match[match.length - 1].replace('$', '')));
-    } else if (lowerLine.includes('tax')) {
-      const match = line.match(priceRegex);
-      if (match) tax = roundToTwo(parseFloat(match[match.length - 1].replace('$', '')));
-    } else if (lowerLine.includes('total')) {
-      const match = line.match(priceRegex);
-      if (match) total = roundToTwo(parseFloat(match[match.length - 1].replace('$', '')));
-    } else {
-      // Try to parse as item line
-      const prices = line.match(priceRegex);
-      if (prices && prices.length > 0) {
-        const price = roundToTwo(parseFloat(prices[prices.length - 1].replace('$', '')));
-        const description = line.substring(0, line.lastIndexOf(prices[prices.length - 1])).trim();
-        
-        if (description && price > 0 && price < 1000) {
-          items.push({ description, price });
+    const priceMatches = Array.from(line.matchAll(priceRegex));
+
+    if (priceMatches.length === 0) return;
+
+    // Extract the last price from the line (most likely the amount)
+    const lastMatch = priceMatches[priceMatches.length - 1];
+    const priceStr = lastMatch[1] || lastMatch[2];
+    const price = roundToTwo(parseFloat(priceStr));
+
+    if (isNaN(price) || price <= 0) return;
+
+    allPrices.push(price);
+
+    // Check for Total keywords
+    if (totalKeywords.test(lowerLine)) {
+      foundTotals.push({ value: price, lineIndex: index });
+    }
+    // Check for Tax keywords
+    else if (taxKeywords.test(lowerLine) && !taxValue) {
+      taxValue = price;
+    }
+    // Check for Tip keywords
+    else if (tipKeywords.test(lowerLine) && !tipValue) {
+      tipValue = price;
+    }
+    // Try to parse as item line with quantity pattern
+    else {
+      // Pattern: [Quantity] [Description] [Price]
+      // Example: "2 Coffee 5.99" or "1x Burger 12.50"
+      const quantityPattern = /^(\d+)\s*[xX*]?\s+(.+?)\s+(?:AED|USD|[$€£¥])?\s*(\d+\.?\d{0,2})$/i;
+      const qtyMatch = line.match(quantityPattern);
+
+      if (qtyMatch) {
+        const qty = parseInt(qtyMatch[1], 10);
+        const desc = qtyMatch[2].trim();
+        const itemPrice = roundToTwo(parseFloat(qtyMatch[3]));
+
+        if (desc && qty > 0 && itemPrice > 0 && itemPrice < 1000) {
+          items.push({ desc, quantity: qty, price: itemPrice });
+        }
+      } else {
+        // Fallback: treat as single item without explicit quantity
+        const descEndIndex = line.lastIndexOf(lastMatch[0]);
+        const description = line.substring(0, descEndIndex).trim();
+
+        // Filter out lines that look like totals/subtotals/tax
+        const isSpecialLine = /\b(subtotal|sub\s*total|discount|change|payment)\b/i.test(lowerLine);
+
+        if (description && price > 0 && price < 1000 && !isSpecialLine) {
+          items.push({ desc: description, quantity: 1, price });
         }
       }
     }
   });
 
-  return { items, subtotal, tax, total };
+  // Step 4: "Last Price" Logic for Total
+  let finalTotal: number;
+
+  if (foundTotals.length > 0) {
+    // Prioritize the one closest to the end, or the largest if multiple
+    const sortedByIndex = [...foundTotals].sort((a, b) => b.lineIndex - a.lineIndex);
+    const candidate = sortedByIndex[0];
+
+    // If there's a tie, pick the largest
+    const maxTotal = Math.max(...foundTotals.map(t => t.value));
+    finalTotal = candidate.value >= maxTotal ? candidate.value : maxTotal;
+  } else {
+    // Step 5: Edge Case Handling - sum all prices and return highest
+    if (allPrices.length > 0) {
+      const summedTotal = roundToTwo(allPrices.reduce((sum, p) => sum + p, 0));
+      const maxPrice = Math.max(...allPrices);
+      // Use the larger of summed or max as suggested total
+      finalTotal = maxPrice > summedTotal * 0.5 ? maxPrice : summedTotal;
+    } else {
+      finalTotal = 0;
+    }
+  }
+
+  // Step 6: Validation - return structured object
+  return {
+    total: finalTotal,
+    tax: taxValue ?? 0,
+    tip: tipValue ?? 0,
+    items,
+  };
+};
+
+// Legacy function for backward compatibility
+export const parseReceiptText = (text: string): { items: Array<{ description: string; price: number }>, subtotal?: number, tax?: number, total?: number } => {
+  const parsed = parseReceiptData(text);
+  return {
+    items: parsed.items.map(item => ({ description: item.desc, price: item.price })),
+    subtotal: undefined,
+    tax: parsed.tax || undefined,
+    total: parsed.total || undefined,
+  };
 };

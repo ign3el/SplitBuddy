@@ -3,19 +3,18 @@ import { CameraCapture } from './components/CameraCapture';
 import { ParticipantManager } from './components/ParticipantManager';
 import { ItemAssignment } from './components/ItemAssignment';
 import { Results } from './components/Results';
-import { SplitHistory } from './components/SplitHistory';
 import { Auth } from './components/Auth';
 import { Pricing } from './components/Pricing';
+import { UserMenu } from './components/UserMenu';
+import { FeaturesComparison } from './components/FeaturesComparison';
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
 import { AdWrapper } from './components/AdWrapper';
 import type { Participant, ReceiptItem, SplitRecord, DetailedSplit } from './types';
-import { processReceiptImages, parseReceiptText } from './utils/ocrProcessor';
+import { processReceiptImages, parseReceiptData, compressImageFile } from './utils/ocrProcessor';
 import { calculateParticipantTotals, generateId } from './utils/calculations';
 import { checkAccess } from './utils/accessControl';
 import './App.css';
-
-const STORAGE_KEY = 'splitbuddy_history';
-const DETAILED_SPLITS_KEY = 'splitbuddy_detailed_splits';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function AppContent() {
   const subscription = useSubscription();
@@ -56,28 +55,72 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
   const [savedNames, setSavedNames] = useState<string[]>([]);
   const [splitHistory, setSplitHistory] = useState<SplitRecord[]>([]);
   const [detailedSplits, setDetailedSplits] = useState<DetailedSplit[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'info'; dismissible?: boolean; autoCloseMs?: number } | null>(null);
   const [currentStep, setCurrentStep] = useState<'scan' | 'participants' | 'assign' | 'results'>('scan');
 
+  const mergeItemsByName = (list: ReceiptItem[]): ReceiptItem[] => {
+    const byName = new Map<string, ReceiptItem>();
+
+    list.forEach(item => {
+      const qty = item.quantity && item.quantity > 0 ? item.quantity : 1;
+      const key = item.description.trim().toLowerCase();
+      const existing = byName.get(key);
+
+      if (!existing) {
+        byName.set(key, { ...item, quantity: qty, assignedTo: [...item.assignedTo] });
+        return;
+      }
+
+      const totalQty = existing.quantity + qty;
+      const totalPrice = existing.price * existing.quantity + item.price * qty;
+      const unitPrice = Math.round((totalPrice / totalQty) * 100) / 100;
+      const mergedAssignedTo = Array.from(new Set([...existing.assignedTo, ...item.assignedTo]));
+      const isShared = mergedAssignedTo.length > 1 || existing.isShared || item.isShared;
+
+      byName.set(key, {
+        ...existing,
+        price: unitPrice,
+        quantity: totalQty,
+        assignedTo: mergedAssignedTo,
+        isShared,
+      });
+    });
+
+    return Array.from(byName.values());
+  };
+
+  const handleItemsChange = (nextItems: ReceiptItem[]) => {
+    setItems(mergeItemsByName(nextItems));
+  };
+
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const records: SplitRecord[] = JSON.parse(saved);
+    const loadHistory = async () => {
+      // Only load history if user is logged in
+      if (!subscription.isLoggedIn) return;
+      
+      // Check if this is first login
+      const hasSeenFeatures = localStorage.getItem('splitbuddy_features_shown');
+      if (!hasSeenFeatures) {
+        setShowFeatures(true);
+        localStorage.setItem('splitbuddy_features_shown', 'true');
+      }
+      
+      try {
+        const { records, detailedSplits: detailed } = await subscription.getSplitHistory();
         setSplitHistory(records);
+        setDetailedSplits(detailed);
         const uniqueNames = Array.from(new Set(records.map(r => r.name)));
         setSavedNames(uniqueNames);
+      } catch (error) {
+        console.error('Error loading history from server', error);
+        // Silently fail - user can still use the app without history
       }
-      const detailedSaved = localStorage.getItem(DETAILED_SPLITS_KEY);
-      if (detailedSaved) {
-        const detailed: DetailedSplit[] = JSON.parse(detailedSaved);
-        setDetailedSplits(detailed);
-      }
-    } catch (error) {
-      console.error('Error loading saved names', error);
-    }
-  }, []);
+    };
+    loadHistory();
+  }, [subscription.isLoggedIn]);
 
   useEffect(() => {
     setCustomTotals(prev => {
@@ -91,42 +134,47 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
     });
   }, [participants]);
 
-  const persistRecords = (newRecords: SplitRecord[], detailedSplit: DetailedSplit) => {
+  const persistRecords = async (newRecords: SplitRecord[], detailedSplit: DetailedSplit) => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const existing: SplitRecord[] = saved ? JSON.parse(saved) : [];
-      const merged = [...existing, ...newRecords];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      await subscription.saveSplitHistory(newRecords, detailedSplit);
+      const merged = [...splitHistory, ...newRecords];
       setSplitHistory(merged);
       const uniqueNames = Array.from(new Set(merged.map(r => r.name)));
       setSavedNames(uniqueNames);
-
-      // Persist detailed split information
-      const detailedSaved = localStorage.getItem(DETAILED_SPLITS_KEY);
-      const existingDetailed: DetailedSplit[] = detailedSaved ? JSON.parse(detailedSaved) : [];
-      const mergedDetailed = [...existingDetailed, detailedSplit];
-      localStorage.setItem(DETAILED_SPLITS_KEY, JSON.stringify(mergedDetailed));
+      const mergedDetailed = [...detailedSplits, detailedSplit];
       setDetailedSplits(mergedDetailed);
     } catch (error) {
       console.error('Error saving records', error);
+      throw error;
     }
   };
 
-  const applyParsedReceipt = (parsedData: ReturnType<typeof parseReceiptText>) => {
+  const applyParsedReceipt = (parsedData: ReturnType<typeof parseReceiptData>) => {
     const newItems: ReceiptItem[] = parsedData.items.map(item => ({
       id: generateId(),
-      description: item.description,
+      description: item.desc,
       price: item.price,
+      quantity: item.quantity,
       assignedTo: [],
       isShared: false,
     }));
 
-    setItems(newItems);
+    handleItemsChange(newItems);
     setCustomTotals({});
 
-    // Default to zero unless the receipt provided explicit values
-    setTaxPercent(0);
-    setTip(0);
+    // Apply tax and tip if detected
+    if (parsedData.tax > 0) {
+      // Convert tax amount to percentage based on item total
+      const itemsTotal = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      if (itemsTotal > 0) {
+        const taxPercent = Math.round((parsedData.tax / itemsTotal) * 100 * 100) / 100;
+        setTaxPercent(taxPercent);
+      }
+    } else {
+      setTaxPercent(0);
+    }
+
+    setTip(parsedData.tip);
 
     // scanned values not stored; participants set next
 
@@ -143,18 +191,32 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
     }
 
     setIsProcessing(true);
+    setProcessingProgress(10);
     try {
-      const ocrResult = await processReceiptImages(files);
-      const parsedData = parseReceiptText(ocrResult.text);
+      const compressed = await Promise.all(files.map(f => compressImageFile(f, 1400, 0.7)));
+      setProcessingProgress(25);
+      const ocrResult = await processReceiptImages(compressed);
+      setProcessingProgress(65);
+      const parsedData = parseReceiptData(ocrResult.text);
+      if (!parsedData.total || parsedData.total === 0) {
+        setToast({ message: "We couldn't detect a total. You can fill it in manually.", type: 'info', autoCloseMs: 3500 });
+      }
+      if (parsedData.items.length === 0) {
+        setToast({ message: 'No line items detected. Add items manually to continue.', type: 'info', autoCloseMs: 3500 });
+      }
       applyParsedReceipt(parsedData);
 
       // Count the scan
-      subscription.useScan();
+      const allowed = await subscription.useScan();
+      if (!allowed) {
+        setToast({ message: 'Free scan limit reached. Upgrade to Pro for more scans.', type: 'info', autoCloseMs: 3500 });
+      }
     } catch (error) {
       console.error('Error processing images:', error);
-      alert('Failed to process receipts. Please try again or add items manually.');
+      setToast({ message: 'Failed to process receipts. Please try again or add items manually.', type: 'error', dismissible: false });
     } finally {
       setIsProcessing(false);
+      setProcessingProgress(100);
     }
   };
 
@@ -180,7 +242,20 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
     setCurrentStep('scan');
   };
 
-  const handleFinishSplit = () => {
+  const handleClearHistory = async () => {
+    try {
+      await subscription.clearSplitHistory();
+      setSplitHistory([]);
+      setDetailedSplits([]);
+      setSavedNames([]);
+      alert('✅ History cleared successfully!');
+    } catch (error) {
+      console.error('Failed to clear history:', error);
+      alert('Failed to clear history. Please try again.');
+    }
+  };
+
+  const handleFinishSplit = async () => {
     if (hasMismatch) {
       alert('Totals mismatch detected. Please adjust participant totals to match the receipt total.');
       return;
@@ -201,13 +276,15 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
       people: finalParticipantTotals.map(pt => ({
         name: pt.participantName,
         items: pt.items.map(item => {
-          // Calculate this person's share of the item
-          const assignmentCount = item.assignedTo.length;
-          const assignedShare = item.price / assignmentCount;
+          const assignmentCount = Math.max(1, item.assignedTo.length);
+          const qty = item.quantity ?? 1;
+          const lineTotal = item.price * qty;
+          const assignedShare = lineTotal / assignmentCount;
           
           return {
             description: item.description,
             price: item.price,
+            quantity: qty,
             isShared: item.isShared,
             assignedShare: Number(assignedShare.toFixed(2)),
           };
@@ -219,13 +296,20 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
       })),
     };
 
-    persistRecords(records, detailedSplit);
-    alert('Split saved for reference.');
-    handleReset();
+    try {
+      await persistRecords(records, detailedSplit);
+      alert('Split saved successfully!');
+      handleReset();
+    } catch (error) {
+      alert('Failed to save split. Please try again.');
+      console.error('Save error:', error);
+    }
   };
 
   const participantTotals = calculateParticipantTotals(participants, items, taxPercent, tip);
-  const itemsSubtotal = useMemo(() => Math.round(items.reduce((sum, item) => sum + item.price, 0) * 100) / 100, [items]);
+  const itemsSubtotal = useMemo(() => {
+    return Math.round(items.reduce((sum, item) => sum + item.price * (item.quantity ?? 1), 0) * 100) / 100;
+  }, [items]);
   const taxAmount = useMemo(() => Math.round(itemsSubtotal * (taxPercent / 100) * 100) / 100, [itemsSubtotal, taxPercent]);
   const expectedTotal = useMemo(() => {
     return Math.round((itemsSubtotal + taxAmount + tip) * 100) / 100;
@@ -248,6 +332,35 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
   const hasMismatch = Math.abs(mismatchAmount) > 0.01;
   const scansRemaining = subscription.maxScansPerMonth - subscription.scansUsedThisMonth;
 
+  const hasUnassignedItems = useMemo(
+    () => items.some(item => item.assignedTo.length === 0),
+    [items]
+  );
+
+  // Progress animation for processing overlay
+  useEffect(() => {
+    if (!isProcessing) {
+      const timeout = setTimeout(() => setProcessingProgress(0), 400);
+      return () => clearTimeout(timeout);
+    }
+    let current = processingProgress || 10;
+    const interval = setInterval(() => {
+      current = Math.min(current + 5, 90);
+      setProcessingProgress(current);
+    }, 300);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProcessing]);
+
+  const closeToast = () => setToast(null);
+
+  // Auto-close info messages when autoCloseMs is provided
+  useEffect(() => {
+    if (!toast || !toast.autoCloseMs) return;
+    const t = setTimeout(() => setToast(null), toast.autoCloseMs);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -258,26 +371,24 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
           </div>
           <div className="header-actions">
             {!subscription.isPro && (
-              <div className="scan-badge">
-                📸 {scansRemaining}/{subscription.maxScansPerMonth} scans
+              <div className="scan-badge" title={scansRemaining === 0 ? 'All free scans used. Upgrade to Pro for unlimited scans.' : ''}>
+                📸 {scansRemaining === 0 ? `${subscription.scansUsedThisMonth}/${subscription.maxScansPerMonth} Free OCR Used` : `${scansRemaining}/${subscription.maxScansPerMonth} scans`}
               </div>
             )}
-            {splitHistory.length > 0 && (
-              <button
-                className="history-btn"
-                onClick={() => setShowHistory(true)}
-                title="View split history"
-              >
-                📊 History ({splitHistory.length})
-              </button>
-            )}
             <button
-              className="btn btn-secondary"
-              onClick={() => subscription.logout()}
-              title="Logout"
+              className="features-btn"
+              onClick={() => setShowFeatures(true)}
+              title="Compare Free vs Pro features"
             >
-              Logout
+              ✨ Features
             </button>
+            <UserMenu
+              onNotify={(message, type) => setToast({ message, type, autoCloseMs: type === 'info' ? 2500 : undefined })}
+              splitHistory={splitHistory}
+              detailedSplits={detailedSplits}
+              onClearHistory={handleClearHistory}
+              onShowFeatures={() => setShowFeatures(true)}
+            />
           </div>
         </div>
       </header>
@@ -291,16 +402,27 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
 
       <main className="app-content">
         {isProcessing && (
-          <div className="processing-overlay">
-            <div className="spinner"></div>
-            <p>Processing receipt...</p>
+          <div className="processing-overlay modern">
+            <div className="progress-shell">
+              <div className="progress-bar" style={{ width: `${processingProgress}%` }} />
+            </div>
+            <p>Scanning receipt... {Math.min(Math.round(processingProgress), 100)}%</p>
+            <div className="skeleton-blocks">
+              <div className="skeleton-line" />
+              <div className="skeleton-line short" />
+              <div className="skeleton-line" />
+            </div>
           </div>
         )}
 
         {currentStep === 'scan' && (
           <div className="step-content">
             <CameraCapture 
+              isDisabled={!subscription.isPro && scansRemaining === 0}
+              disableReason="🔒 Upgrade to Pro to scan more receipts"
+              onDisabledClick={() => setShowFeatures(true)}
               onFilesProcess={handleImagesProcess}
+              onError={msg => setToast({ message: msg, type: 'error', dismissible: false })}
             />
             <div className="scan-secondary-actions">
               <button 
@@ -321,15 +443,15 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
               savedNames={savedNames}
             />
             <div className="step-navigation">
-              <button onClick={() => setCurrentStep('scan')} className="btn btn-secondary">
-                ← Back
-              </button>
               <button 
                 onClick={() => setCurrentStep('assign')} 
                 className="btn btn-primary"
                 disabled={participants.length === 0}
               >
                 Next: Assign Items →
+              </button>
+              <button onClick={() => setCurrentStep('scan')} className="btn btn-secondary">
+                ← Back
               </button>
             </div>
           </div>
@@ -340,18 +462,19 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
             <ItemAssignment 
               items={items}
               participants={participants}
-              onItemsChange={setItems}
+              onItemsChange={handleItemsChange}
             />
             <div className="step-navigation">
-              <button onClick={() => setCurrentStep('participants')} className="btn btn-secondary">
-                ← Back
-              </button>
               <button 
                 onClick={() => setCurrentStep('results')} 
                 className="btn btn-primary"
-                disabled={items.length === 0}
+                disabled={items.length === 0 || hasUnassignedItems}
+                title={hasUnassignedItems ? 'Please assign all items to participants' : ''}
               >
                 Calculate Split →
+              </button>
+              <button onClick={() => setCurrentStep('participants')} className="btn btn-secondary">
+                ← Back
               </button>
             </div>
           </div>
@@ -374,14 +497,14 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
               onFinish={handleFinishSplit}
             />
             <div className="step-navigation">
-              <button onClick={() => setCurrentStep('assign')} className="btn btn-secondary">
-                ← Back to Items
-              </button>
               <button 
                 onClick={handleReset}
                 className="btn btn-primary"
               >
                 🔄 Start New Split
+              </button>
+              <button onClick={() => setCurrentStep('assign')} className="btn btn-secondary">
+                ← Back to Items
               </button>
             </div>
           </div>
@@ -394,12 +517,27 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
         <p>Made with 💚 by IgN3eL</p>
       </footer>
 
-      {showHistory && (
-        <SplitHistory
-          records={splitHistory}
-          detailedSplits={detailedSplits}
-          onClose={() => setShowHistory(false)}
-        />
+      {showFeatures && (
+        <FeaturesComparison onClose={() => setShowFeatures(false)} />
+      )}
+
+      {toast && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className={`modal ${toast.type}`}>
+            <div className="modal-header">
+              <h3>{toast.type === 'error' ? 'Error' : 'Notice'}</h3>
+              {toast.dismissible !== false && (
+                <button className="modal-close" onClick={closeToast} aria-label="Close">×</button>
+              )}
+            </div>
+            <div className="modal-body">
+              <p>{toast.message}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={closeToast}>OK</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -407,9 +545,18 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
 
 function App() {
   return (
-    <SubscriptionProvider>
-      <AppContent />
-    </SubscriptionProvider>
+    <ErrorBoundary
+      fallback={(
+        <div style={{ padding: '1.5rem' }}>
+          <h2>SplitBuddy encountered an error.</h2>
+          <p>Please reload the page. If this persists, check your environment configuration.</p>
+        </div>
+      )}
+    >
+      <SubscriptionProvider>
+        <AppContent />
+      </SubscriptionProvider>
+    </ErrorBoundary>
   );
 }
 

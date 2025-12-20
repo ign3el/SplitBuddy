@@ -4,9 +4,13 @@ import './CameraCapture.css';
 interface CameraCaptureProps {
   onFileSelect?: (file: File) => void;
   onFilesProcess?: (files: File[]) => void;
+  onError?: (message: string) => void;
+  isDisabled?: boolean;
+  disableReason?: string;
+  onDisabledClick?: () => void;
 }
 
-export const CameraCapture: React.FC<CameraCaptureProps> = ({ onFileSelect, onFilesProcess }) => {
+export const CameraCapture: React.FC<CameraCaptureProps> = ({ onFileSelect, onFilesProcess, onError, isDisabled, disableReason, onDisabledClick }) => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
   const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
@@ -69,6 +73,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onFileSelect, onFi
         setCameraMessage(error?.name === 'NotAllowedError'
           ? 'Camera permission denied. Please allow access or use the device camera option.'
           : 'Unable to access camera directly. Trying alternative methods...');
+        if (error?.name === 'NotAllowedError' && onError) {
+          onError('Camera permission denied. Please allow access or use the device camera option.');
+        }
         continue;
       }
     }
@@ -123,24 +130,39 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onFileSelect, onFi
       
       {!isCameraActive ? (
         <div className="upload-options">
-          <button onClick={startCamera} className="btn btn-primary">
+          <button 
+            onClick={isDisabled ? onDisabledClick : startCamera} 
+            className="btn btn-primary"
+            disabled={isDisabled}
+            title={disableReason}
+            style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+          >
             📷 Open Camera
           </button>
-          <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
+          <button 
+            onClick={isDisabled ? onDisabledClick : () => fileInputRef.current?.click()} 
+            className="btn btn-secondary"
+            disabled={isDisabled}
+            title={disableReason}
+            style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+          >
             📁 Upload Image
           </button>
           <div className="queue-info">
-            <span>Photos added: {queuedFiles.length}</span>
+            <div className="queue-meta">
+              <div className="queue-label">Photos queued</div>
+              <div className="queue-count">{queuedFiles.length}</div>
+            </div>
             {queuedFiles.length > 0 && (
               <div className="queue-actions">
                 <button
-                  className="btn btn-primary"
+                  className="pill-btn primary"
                   onClick={() => onFilesProcess && onFilesProcess(queuedFiles)}
                 >
                   ⚙️ Process All Photos
                 </button>
                 <button
-                  className="btn btn-secondary"
+                  className="pill-btn ghost"
                   onClick={() => setQueuedFiles([])}
                 >
                   🧹 Clear

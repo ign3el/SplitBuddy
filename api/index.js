@@ -1,5 +1,7 @@
 // Vercel serverless function handler
 import app from './app.js';
 
-// Export the Express app for Vercel to handle
-export default app;
+// Export a standard Node handler that delegates to Express
+export default function handler(req, res) {
+	return app(req, res);
+}

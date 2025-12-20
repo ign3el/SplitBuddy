@@ -1,5 +1,5 @@
 // Vercel serverless function handler
-import app from '../server/app.js';
+import app from './app.js';
 
 // Export the Express app for Vercel to handle
 export default app;

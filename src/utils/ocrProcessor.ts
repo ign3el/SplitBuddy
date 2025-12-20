@@ -232,21 +232,26 @@ export const parseReceiptData = (rawText: string): {
   // Step 1: Cleaning - Remove OCR noise
   let cleanedText = rawText
     .replace(/[|]/g, ' ') // Remove pipes
-    .replace(/\s+/g, ' ') // Collapse multiple spaces
+    .replace(/[ \t]+/g, ' ') // Collapse spaces/tabs but keep newlines for line parsing
     .replace(/[o0](?=\.\d{2})/gi, '0') // Fix misread zeros near decimals
     .replace(/[sS]\s*(?=\d)/g, '$') // Fix misread dollar signs
     .replace(/[il]\s*(?=\d)/gi, '1') // Fix misread 1s
+    .replace(/([A-Z])\s+\1+/g, '$1') // Remove duplicate letters (e.g., "CC" -> "C")
+    .replace(/\b([A-Z])\s+([A-Z])\b/g, '$1$2') // Remove spaces between letters (e.g., "H E" -> "HE")
     .trim();
 
-  const lines = cleanedText.split('\n').filter(line => line.trim());
+  const lines = cleanedText
+    .split(/\r?\n/) // preserve original line structure for item parsing
+    .map(l => l.trim())
+    .filter(line => line.length > 0);
 
   // Price regex: matches $12.99, 12.99, AED 12.99, etc.
   const priceRegex = /(?:AED|USD|[$€£¥])\s*(\d+\.?\d{0,2})|(\d+\.\d{2})/gi;
 
   // Step 2: Keyword mapping for Total, Tax, Tip
-  const totalKeywords = /\b(total|amount\s*due|grand\s*total|balance|net\s*amount)\b/i;
-  const taxKeywords = /\b(sales\s*tax|tax|vat|gst)\b/i;
-  const tipKeywords = /\b(tip|gratuity|service\s*charge)\b/i;
+  const totalKeywords = /\b(total|amount\s*due|grand\s*total|balance|net\s*amount|final|sum)\b/i;
+  const taxKeywords = /\b(sales\s*tax|tax|vat|gst|service\s*tax)\b/i;
+  const tipKeywords = /\b(tip|gratuity|service\s*charge|service)\b/i;
 
   const foundTotals: Array<{ value: number; lineIndex: number }> = [];
   let taxValue: number | undefined;
@@ -294,18 +299,24 @@ export const parseReceiptData = (rawText: string): {
         const desc = qtyMatch[2].trim();
         const itemPrice = roundToTwo(parseFloat(qtyMatch[3]));
 
-        if (desc && qty > 0 && itemPrice > 0 && itemPrice < 1000) {
+        if (desc && desc.length > 1 && qty > 0 && itemPrice > 0 && itemPrice < 1000) {
           items.push({ desc, quantity: qty, price: itemPrice });
         }
       } else {
         // Fallback: treat as single item without explicit quantity
         const descEndIndex = line.lastIndexOf(lastMatch[0]);
-        const description = line.substring(0, descEndIndex).trim();
+        let description = line.substring(0, descEndIndex).trim();
 
-        // Filter out lines that look like totals/subtotals/tax
-        const isSpecialLine = /\b(subtotal|sub\s*total|discount|change|payment)\b/i.test(lowerLine);
+        // Remove leading quantity if present (e.g., "1 " or "2x ")
+        description = description.replace(/^\d+\s*[xX*]?\s+/, '').trim();
 
-        if (description && price > 0 && price < 1000 && !isSpecialLine) {
+        // Filter out lines that look like totals/subtotals/tax/payment-related
+        const isSpecialLine = /\b(subtotal|sub\s*total|discount|change|payment|due|charged|balance|thank|you|welcome|receipt|store|date|time|hour|minute|cashier|register|phone|address)\b/i.test(lowerLine);
+        
+        // Also filter out lines that are too short (likely headers/footers)
+        const isTooShort = description.length < 2;
+
+        if (description && price > 0 && price < 1000 && !isSpecialLine && !isTooShort) {
           items.push({ desc: description, quantity: 1, price });
         }
       }

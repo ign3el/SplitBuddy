@@ -7,6 +7,7 @@ import { Auth } from './components/Auth';
 import { Pricing } from './components/Pricing';
 import { UserMenu } from './components/UserMenu';
 import { FeaturesComparison } from './components/FeaturesComparison';
+import ScanCounter from './components/ScanCounter';
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
 import { AdWrapper } from './components/AdWrapper';
 import type { Participant, ReceiptItem, SplitRecord, DetailedSplit } from './types';
@@ -198,6 +199,16 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
       const ocrResult = await processReceiptImages(compressed);
       setProcessingProgress(65);
       const parsedData = parseReceiptData(ocrResult.text);
+      
+      // Check if OCR successfully extracted any data
+      const hasExtractedData = (parsedData.items.length > 0 || parsedData.total > 0);
+      
+      if (!hasExtractedData) {
+        setToast({ message: 'No data detected in receipt. Please try another image or add items manually.', type: 'info', autoCloseMs: 3500 });
+        // Don't count this scan - OCR failed to extract data
+        return;
+      }
+      
       if (!parsedData.total || parsedData.total === 0) {
         setToast({ message: "We couldn't detect a total. You can fill it in manually.", type: 'info', autoCloseMs: 3500 });
       }
@@ -206,7 +217,7 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
       }
       applyParsedReceipt(parsedData);
 
-      // Count the scan
+      // Count the scan only after successful data extraction
       const allowed = await subscription.useScan();
       if (!allowed) {
         setToast({ message: 'Free scan limit reached. Upgrade to Pro for more scans.', type: 'info', autoCloseMs: 3500 });
@@ -214,6 +225,7 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
     } catch (error) {
       console.error('Error processing images:', error);
       setToast({ message: 'Failed to process receipts. Please try again or add items manually.', type: 'error', dismissible: false });
+      // Don't count this scan - OCR processing failed
     } finally {
       setIsProcessing(false);
       setProcessingProgress(100);
@@ -370,11 +382,7 @@ function AppMainContent({ onPricingRedirect }: { onPricingRedirect: () => void }
             <p>Smart bill splitting made easy</p>
           </div>
           <div className="header-actions">
-            {!subscription.isPro && (
-              <div className="scan-badge" title={scansRemaining === 0 ? 'All free scans used. Upgrade to Pro for unlimited scans.' : ''}>
-                📸 {scansRemaining === 0 ? `${subscription.scansUsedThisMonth}/${subscription.maxScansPerMonth} Free OCR Used` : `${scansRemaining}/${subscription.maxScansPerMonth} scans`}
-              </div>
-            )}
+            <ScanCounter />
             <button
               className="features-btn"
               onClick={() => setShowFeatures(true)}

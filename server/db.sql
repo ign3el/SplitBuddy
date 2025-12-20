@@ -1,4 +1,4 @@
--- MySQL schema for SplitBuddy minimal auth + profiles
+-- MySQL schema for SplitBuddy authentication + billing
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -33,6 +33,26 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   used TINYINT(1) NOT NULL DEFAULT 0,
   INDEX idx_verifications_user (user_id),
   CONSTRAINT fk_verifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS bills (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  total DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_bills_user (user_id),
+  CONSTRAINT fk_bills_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS splits (
+  id VARCHAR(36) PRIMARY KEY,
+  bill_id VARCHAR(36) NOT NULL,
+  participant VARCHAR(255) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_splits_bill (bill_id),
+  CONSTRAINT fk_splits_bill FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS split_history (

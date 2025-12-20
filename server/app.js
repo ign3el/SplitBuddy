@@ -23,6 +23,12 @@ const {
   SMTP_USER,
   SMTP_PASSWORD,
   SMTP_SECURE,
+  EMAIL_SERVICE,
+  EMAIL_HOST,
+  EMAIL_PORT,
+  EMAIL_USER,
+  EMAIL_PASSWORD,
+  EMAIL_FROM,
   RESET_PUBLIC_URL,
   VERIFY_PUBLIC_URL,
   FRONTEND_URL
@@ -30,11 +36,46 @@ const {
 
 // Allow flexible env check for serverless
 const hasRequiredEnv = DB_HOST && DB_PORT && DB_USER && DB_PASSWORD && DB_NAME && JWT_SECRET;
-if (!hasRequiredEnv && process.env.NODE_ENV !== 'development') {
+const isDev = process.env.NODE_ENV === 'development';
+if (!hasRequiredEnv && !isDev) {
   console.warn('Missing required env vars. Server may not function correctly.');
 }
 
-const pool = getPool();
+let pool;
+try {
+  pool = getPool();
+  if (!pool) {
+    console.error('✗ Pool is null - database credentials may be invalid');
+  } else {
+    console.log('✓ Database pool initialized');
+    console.log(`[DB] Connecting to ${DB_HOST}:${DB_PORT}/${DB_NAME} as ${DB_USER}`);
+  }
+  
+  // Test the connection immediately
+  if (pool) {
+    try {
+      const conn = await pool.getConnection();
+      const [result] = await conn.query('SELECT 1 as ok');
+      conn.release();
+      console.log('✓ Database connection verified - MySQL is reachable');
+    } catch (err) {
+      console.error('✗ Database connection test failed:', err.message);
+      console.error('[DB] Code:', err.code, 'SQLState:', err.sqlState);
+      if (isDev) {
+        console.warn('⚠ Running in development mode - will attempt to continue');
+      } else {
+        throw err;
+      }
+    }
+  }
+} catch (err) {
+  console.error('✗ Database initialization failed:', err.message);
+  if (!isDev) {
+    throw err;
+  }
+  console.warn('⚠ Running in development mode without database - API endpoints will return errors');
+  pool = null;
+}
 
 const brand = {
   primary: '#10b981',
@@ -45,14 +86,30 @@ const brand = {
 
 const appOrigin = VERIFY_PUBLIC_URL || RESET_PUBLIC_URL || 'http://localhost:3003';
 
-const transporter = (SMTP_HOST && MOCK_EMAIL !== 'true')
-  ? nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT || 587),
-      secure: SMTP_SECURE === 'true',
-      auth: SMTP_USER && SMTP_PASSWORD ? { user: SMTP_USER, pass: SMTP_PASSWORD } : undefined,
-    })
-  : null;
+let transporter = null;
+if (MOCK_EMAIL !== 'true') {
+  // Prefer EMAIL_* vars when provided; fallback to SMTP_*
+  const host = EMAIL_HOST || SMTP_HOST;
+  const port = Number(EMAIL_PORT || SMTP_PORT || 587);
+  const secure = (SMTP_SECURE === 'true');
+  const user = EMAIL_USER || SMTP_USER;
+  const pass = EMAIL_PASSWORD || SMTP_PASSWORD;
+  if (EMAIL_SERVICE && user && pass) {
+    transporter = nodemailer.createTransport({
+      service: EMAIL_SERVICE,
+      auth: { user, pass },
+    });
+  } else if (host) {
+    transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+    });
+  }
+}
+
+const DEFAULT_FROM = EMAIL_FROM || SMTP_USER || 'no-reply@splitbuddy.local';
 
 function renderEmail({ title, intro, ctaUrl, ctaLabel, footer }) {
   return `<!doctype html>
@@ -114,7 +171,7 @@ async function sendEmail({ to, subject, html }) {
     return;
   }
   await transporter.sendMail({
-    from: SMTP_USER || 'no-reply@splitbuddy.local',
+    from: DEFAULT_FROM,
     to,
     subject,
     html,
@@ -132,50 +189,74 @@ async function ensureSchema() {
   if (!pool) return;
   const conn = await pool.getConnection();
   try {
-    await conn.query(`CREATE TABLE IF NOT EXISTS users (
-      id VARCHAR(36) PRIMARY KEY,
-      email VARCHAR(255) NOT NULL UNIQUE,
-      name VARCHAR(255),
-      password_hash VARCHAR(255) NOT NULL,
-      is_verified TINYINT(1) NOT NULL DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB;`);
-    await conn.query(`CREATE TABLE IF NOT EXISTS profiles (
-      user_id VARCHAR(36) PRIMARY KEY,
-      is_pro TINYINT(1) NOT NULL DEFAULT 0,
-      scans_used_this_month INT NOT NULL DEFAULT 0,
-      max_scans_per_month INT NOT NULL DEFAULT 5,
-      month_reset_date DATETIME NOT NULL,
-      CONSTRAINT fk_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB;`);
-    await conn.query(`CREATE TABLE IF NOT EXISTS password_resets (
-      token VARCHAR(64) PRIMARY KEY,
-      user_id VARCHAR(36) NOT NULL,
-      expires_at DATETIME NOT NULL,
-      used TINYINT(1) NOT NULL DEFAULT 0,
-      INDEX idx_resets_user (user_id),
-      CONSTRAINT fk_resets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB;`);
-    await conn.query(`CREATE TABLE IF NOT EXISTS email_verifications (
-      token VARCHAR(64) PRIMARY KEY,
-      user_id VARCHAR(36) NOT NULL,
-      expires_at DATETIME NOT NULL,
-      used TINYINT(1) NOT NULL DEFAULT 0,
-      INDEX idx_verifications_user (user_id),
-      CONSTRAINT fk_verifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB;`);
-    await conn.query(`CREATE TABLE IF NOT EXISTS split_history (
-      id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(36) NOT NULL,
-      split_date DATETIME NOT NULL,
-      participant_name VARCHAR(255) NOT NULL,
-      amount DECIMAL(10,2) NOT NULL,
-      detailed_data JSON,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_history_user (user_id),
-      INDEX idx_history_date (split_date),
-      CONSTRAINT fk_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB;`);
+    const schemaStatements = [
+      `CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(36) PRIMARY KEY,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        name VARCHAR(255),
+        password_hash VARCHAR(255) NOT NULL,
+        is_verified TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS profiles (
+        user_id VARCHAR(36) PRIMARY KEY,
+        is_pro TINYINT(1) NOT NULL DEFAULT 0,
+        scans_used_this_month INT NOT NULL DEFAULT 0,
+        max_scans_per_month INT NOT NULL DEFAULT 5,
+        month_reset_date DATETIME NOT NULL,
+        CONSTRAINT fk_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS password_resets (
+        token VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used TINYINT(1) NOT NULL DEFAULT 0,
+        INDEX idx_resets_user (user_id),
+        CONSTRAINT fk_resets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS email_verifications (
+        token VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used TINYINT(1) NOT NULL DEFAULT 0,
+        INDEX idx_verifications_user (user_id),
+        CONSTRAINT fk_verifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS bills (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        total DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_bills_user (user_id),
+        CONSTRAINT fk_bills_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS splits (
+        id VARCHAR(36) PRIMARY KEY,
+        bill_id VARCHAR(36) NOT NULL,
+        participant VARCHAR(255) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_splits_bill (bill_id),
+        CONSTRAINT fk_splits_bill FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`,
+      `CREATE TABLE IF NOT EXISTS split_history (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        split_date DATETIME NOT NULL,
+        participant_name VARCHAR(255) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        detailed_data JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_history_user (user_id),
+        INDEX idx_history_date (split_date),
+        CONSTRAINT fk_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;`
+    ];
+
+    for (const statement of schemaStatements) {
+      await conn.query(statement);
+    }
     const [colRows] = await conn.query(`
       SELECT COUNT(*) AS cnt
       FROM information_schema.columns
@@ -194,20 +275,52 @@ async function ensureSchema() {
 
 const app = express();
 app.use(express.json());
+
+// CORS configuration: allow localhost, 127.0.0.1, and network IPs in dev; strict in prod
+function getCorsOrigin() {
+  const isDev = (process.env.NODE_ENV || '').toLowerCase() !== 'production';
+  if (isDev) {
+    // In development, accept any origin that looks like localhost or a network address
+    return function (origin, callback) {
+      const allowedPatterns = [
+        /^http:\/\/localhost(:\d+)?$/,
+        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+        /^http:\/\/192\.168\.([\d.]+)(:\d+)?$/,
+        /^http:\/\/10\.([\d.]+)(:\d+)?$/,
+        /^http:\/\/172\.(1[6-9]|2[0-9]|3[01])\.([\d.]+)(:\d+)?$/,
+      ];
+      const isAllowed = !origin || allowedPatterns.some(pattern => pattern.test(origin));
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS not allowed for origin: ${origin}`));
+      }
+    };
+  } else {
+    // In production, use the configured CORS_ORIGIN
+    return CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com';
+  }
+}
+
 app.use(cors({ 
-  origin: CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com',
+  origin: getCorsOrigin(),
   credentials: true 
 }));
 
 app.get('/api/ping', async (_req, res) => {
   if (!pool) return res.status(503).json({ ok: false, message: 'Database not configured' });
   try {
-    const conn = await pool.getConnection();
+    // Simple connection test with 5 second timeout
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Connection timeout')), 5000)
+    );
+    const connPromise = pool.getConnection();
+    const conn = await Promise.race([connPromise, timeoutPromise]);
     await conn.query('SELECT 1');
     conn.release();
-    res.json({ ok: true, message: 'MySQL reachable', timestamp: new Date().toISOString(), environment: { NODE_ENV: process.env.NODE_ENV, PORT: process.env.PORT } });
+    res.json({ ok: true, message: 'MySQL reachable', timestamp: new Date().toISOString() });
   } catch (e) {
-    res.status(500).json({ ok: false, message: e.message, error: e.code });
+    res.status(500).json({ ok: false, message: e.message });
   }
 });
 
@@ -236,6 +349,56 @@ app.get('/api/health', async (_req, res) => {
       database: 'disconnected',
       error: e.message,
       code: e.code
+    });
+  }
+});
+
+app.get('/api/db-test', async (_req, res) => {
+  if (!pool) return res.status(503).json({ ok: false, error: 'Database pool not initialized' });
+  try {
+    // Test basic connectivity
+    const conn = await pool.getConnection();
+    const [testResult] = await conn.query('SELECT 1 as test');
+    
+    // Check if users table exists
+    const [tableCheck] = await conn.query(`
+      SELECT COUNT(*) as table_count 
+      FROM information_schema.tables 
+      WHERE table_schema = DATABASE() 
+      AND table_name IN ('users', 'profiles', 'bills', 'splits', 'split_history')
+    `);
+    
+    // Get row counts
+    const [counts] = await conn.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users) as user_count,
+        (SELECT COUNT(*) FROM profiles) as profile_count,
+        (SELECT COUNT(*) FROM bills) as bill_count,
+        (SELECT COUNT(*) FROM splits) as split_count,
+        (SELECT COUNT(*) FROM split_history) as history_count
+    `);
+    
+    conn.release();
+    
+    res.json({
+      ok: true,
+      connectivity: 'verified',
+      database: process.env.DB_NAME,
+      host: process.env.DB_HOST,
+      testQuery: testResult,
+      tables: {
+        configured: tableCheck[0]?.table_count || 0,
+        expected: 5
+      },
+      rows: counts[0] || {},
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: e.message,
+      code: e.code,
+      sqlState: e.sqlState
     });
   }
 });

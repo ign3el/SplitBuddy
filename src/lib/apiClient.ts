@@ -1,5 +1,14 @@
 // Simple API client for SplitBuddy backend
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const getBaseUrl = () => {
+  const url = import.meta.env.VITE_API_BASE_URL || '/api';
+  // If VITE_API_BASE_URL is a full URL (http/https), append /api if not already present
+  if (url.startsWith('http') && !url.includes('/api')) {
+    return `${url}/api`;
+  }
+  return url;
+};
+
+const BASE_URL = getBaseUrl();
 
 const withTimeout = async <T>(p: Promise<T>, ms = 15000): Promise<T> => {
   let id: number | undefined;

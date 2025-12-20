@@ -7,9 +7,8 @@
       "maxDuration": 10
     }
   },
-  "rewrites": [
-    { "source": "/verify", "destination": "/api/verify" },
-    { "source": "/reset", "destination": "/api/reset" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

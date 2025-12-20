@@ -1,7 +1,6 @@
-// Vercel serverless function handler
-import app from './app.js';
-
-// Export a standard Node handler that delegates to Express
+// Minimal index function to validate serverless routing
 export default function handler(req, res) {
-	return app(req, res);
+	res.statusCode = 200;
+	res.setHeader('Content-Type', 'application/json');
+	res.end(JSON.stringify({ ok: true, message: 'index function alive' }));
 }

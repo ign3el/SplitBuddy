@@ -1,5 +1,5 @@
 // Express app export for both local and Vercel serverless
-import 'dotenv/config';
+// Note: dotenv not needed in Vercel - env vars are injected automatically
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';

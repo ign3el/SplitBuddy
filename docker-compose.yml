@@ -19,7 +19,7 @@ services:
       timeout: 20s
       retries: 10
     networks:
-      - splitbuddy-network
+      - ign3el_network
 
   # Backend API Server
   backend:
@@ -45,7 +45,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - splitbuddy-network
+      - ign3el_network
 
   # Frontend (Nginx serving static files)
   frontend:
@@ -68,5 +68,5 @@ volumes:
     driver: local
 
 networks:
-  splitbuddy-network:
-    driver: bridge
+  ign3el_network:
+    external: true

@@ -30,9 +30,8 @@ services:
     ports:
       - "3003:3003"
     environment:
-      NODE_ENV: production
       PORT: 3003
-      DB_HOST: db
+      DB_HOST: ${DB_HOST:-db}
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-splitbuddy}
       DB_USER: ${DB_USER:-splitbuddy}

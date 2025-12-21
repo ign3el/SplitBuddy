@@ -1,0 +1,52 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: splitbuddy-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql  # This persists your data on the VPS
+    networks:
+      - ign3el_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  backend:
+    container_name: splitbuddy-backend
+    build:
+      context: ./server
+      dockerfile: ../Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy  # Waits for MySQL to be ready
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=${DB_HOST}  # Use the service name from above
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    networks:
+      - ign3el_network
+
+  frontend:
+    container_name: splitbuddy-frontend
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - 80
+    networks:
+      - ign3el_network
+
+volumes:
+  mysql_data:  # Named volume for database persistence
+
+networks:
+  ign3el_network:
+    external: true

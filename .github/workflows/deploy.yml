@@ -3,17 +3,18 @@ name: Deploy to VPS
 on:
   push:
     branches:
-      - main  # This ensures it only deploys when you push to the main branch
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Execute remote SSH commands
+      - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_IP }}
@@ -21,6 +22,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/splitbuddy
-            git fetch origin main
-            git reset --hard origin/main
-            docker compose up -d --build
+            git pull origin main
+            docker-compose down
+            docker-compose up -d --build
+            echo "Deployment completed successfully"

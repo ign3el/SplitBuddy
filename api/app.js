@@ -313,7 +313,7 @@ app.post('/api/auth/login', async (req, res) => {
       const recentToken = Array.isArray(recentTokens) && recentTokens.length ? recentTokens[0] : null;
       const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
       if (recentToken?.expires_at) {
-        const createdApprox = new Date(new Date(recentToken.expires_at).getTime() - 30 * 60 * 1000);
+        const createdApprox = new Date(new Date(recentToken.expires_at).getTime() - 24 * 60 * 60 * 1000); // expires_at is 24h after creation
         if (createdApprox > threeMinutesAgo) {
           // Verification email was sent recently, don't send another one
           return res.status(429).json({ error: 'Verification email was recently sent. Please check your email or try again in 3 minutes.' });

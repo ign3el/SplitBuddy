@@ -7,8 +7,9 @@ const port = process.env.PORT || 3003;
 try {
   console.log(`[Startup] Starting SplitBuddy server on port ${port}...`);
   
-  const server = app.listen(port, 'localhost', () => {
-    console.log(`✓ SplitBuddy server listening on http://localhost:${port}`);
+  // Bind to 0.0.0.0 to allow Docker container to receive traffic from the network bridge
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`✓ SplitBuddy server listening on port ${port}`);
   });
 
   server.on('error', (err) => {

@@ -1,10 +1,17 @@
 // Simple API client for SplitBuddy backend
 const getBaseUrl = () => {
-  const url = import.meta.env.VITE_API_BASE_URL || '/api';
+  const url = import.meta.env.VITE_API_BASE_URL;
+  
+  // If no env var is set, default to /api for relative path
+  if (!url) {
+    return '/api';
+  }
+  
   // If VITE_API_BASE_URL is a full URL (http/https), append /api if not already present
   if (url.startsWith('http') && !url.includes('/api')) {
     return `${url}/api`;
   }
+  
   return url;
 };
 

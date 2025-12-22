@@ -4,6 +4,7 @@ services:
     container_name: splitbuddy-db
     restart: unless-stopped
     environment:
+      # These values are pulled automatically from your VPS's .env file
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: splitbuddy_db
       MYSQL_USER: splitbuddy_user
@@ -20,13 +21,13 @@ services:
   backend:
     container_name: splitbuddy-backend
     build:
-      context: ./server
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV}
       - DB_HOST=db
       - DB_USER=splitbuddy_user
       - DB_PASSWORD=${DB_PASSWORD}

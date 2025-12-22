@@ -490,7 +490,7 @@ app.post('/api/auth/request-reset', async (req, res) => {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
     await conn.query('INSERT INTO password_resets (token, user_id, expires_at, used) VALUES (?, ?, ?, 0)', [token, user.id, expiresAt]);
 
-    const resetUrl = `${RESET_PUBLIC_URL || 'http://localhost:3003'}/reset?token=${token}`;
+    const resetUrl = `${appOrigin}/reset?token=${token}`;
     await sendEmail({ to: user.email, subject: 'Reset your SplitBuddy password', html: buildResetEmail(resetUrl) });
     res.json({ ok: true });
   } catch (e) {

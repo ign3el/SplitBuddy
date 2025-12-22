@@ -3,38 +3,34 @@ services:
     image: mysql:8.0
     container_name: splitbuddy-db
     restart: unless-stopped
-    env_file: .env  # Injects variables so MySQL can see them
+    env_file: .env
     environment:
+      # These now pull directly from your .env file
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: splitbuddy_db
-      MYSQL_USER: splitbuddy_user
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - ign3el_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      # Updated to use the variables for the health check itself
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s # Gives MySQL time to initialize before health checks start
+      start_period: 30s
 
   backend:
     container_name: splitbuddy-backend
     build:
       context: .
       dockerfile: Dockerfile
-    env_file: .env # Injects variables so your Node.js code can see them
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      - NODE_ENV=${NODE_ENV}
-      - DB_HOST=splitbuddy-db # Matches the container_name of your DB
-      - DB_USER=splitbuddy_user
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=splitbuddy_db
     networks:
       - ign3el_network
 
@@ -43,7 +39,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    env_file: .env # Fixes the "Missing required env vars" error in your logs
+    env_file: .env
     expose:
       - 80
     networks:

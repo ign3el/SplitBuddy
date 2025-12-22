@@ -85,6 +85,9 @@ const brand = {
 };
 
 const appOrigin = VERIFY_PUBLIC_URL || RESET_PUBLIC_URL || 'http://localhost:3003';
+console.log('[Email URLs] appOrigin:', appOrigin);
+console.log('[Email URLs] VERIFY_PUBLIC_URL:', VERIFY_PUBLIC_URL);
+console.log('[Email URLs] RESET_PUBLIC_URL:', RESET_PUBLIC_URL);
 
 let transporter = null;
 if (MOCK_EMAIL !== 'true') {

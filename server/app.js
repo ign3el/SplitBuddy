@@ -823,5 +823,19 @@ if (pool) {
   ensureSchema().catch(err => console.error('Schema setup error:', err));
 }
 
+// SERVE FRONTEND: Serve static files from dist folder (for production Docker container)
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files from dist directory
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// CATCH-ALL: Send all other requests to index.html (important for SPA routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
 export default app;
 export { ensureSchema, pool };

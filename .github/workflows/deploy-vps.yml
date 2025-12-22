@@ -4,27 +4,41 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy SplitBuddy to VPS
     runs-on: ubuntu-latest
+    environment:
+      name: production
     
     steps:
-      - name: 🚀 Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            cd /var/www/splitbuddy
-            ./deploy.sh
-            
-      - name: ✅ Deployment Complete
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Diagnostic Check
         run: |
-          echo "🎉 Deployment to VPS completed successfully!"
-          echo "Frontend: https://www.splitbuddy.ign3el.com"
-          echo "Backend: https://api.splitbuddy.ign3el.com"
+          if [ -z "${{ secrets.VPS_IP }}" ]; then
+            echo "❌ VPS_IP is EMPTY. Check Environment Secrets."
+            exit 1
+          else
+            echo "✅ VPS_IP is LOADED."
+          fi
+      - name: Diagnostic Secret Check
+        run: |
+          if [[ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]]; then
+            echo "FAILED: The secret is NOT being read. Check Environment settings."
+            exit 1
+          else
+            echo "SUCCESS: The secret is found."
+          fi
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/${{ secrets.VPS_USERNAME }}/splitbuddy
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose up -d --build

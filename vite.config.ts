@@ -4,12 +4,17 @@ import { execSync } from 'child_process'
 
 // Get build information
 const getBuildInfo = () => {
+  const buildDate = new Date().toISOString().split('T')[0]
+  // Prefer COMMIT_SHA from environment (works in Docker/CI), fallback to git
+  const fromEnv = process.env.COMMIT_SHA
+  if (fromEnv && fromEnv.trim().length > 0) {
+    return { commitHash: fromEnv.trim(), buildDate }
+  }
   try {
     const commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
-    const buildDate = new Date().toISOString().split('T')[0]
     return { commitHash, buildDate }
   } catch {
-    return { commitHash: 'unknown', buildDate: new Date().toISOString().split('T')[0] }
+    return { commitHash: 'unknown', buildDate }
   }
 }
 

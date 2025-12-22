@@ -15,9 +15,8 @@ build
 .env.local
 .env.*.local
 
-# Git
-.git
-.gitignore
+# Git (include .git so Docker build can read commit SHA)
+# .gitignore
 
 # Documentation
 *.md

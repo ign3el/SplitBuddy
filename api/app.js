@@ -273,7 +273,7 @@ app.post('/api/auth/signup', async (req, res) => {
     await conn.query('INSERT INTO profiles (user_id, is_pro, scans_used_this_month, max_scans_per_month, month_reset_date) VALUES (?, 0, 0, 5, ?)', [id, new Date()]);
 
     const token = await issueVerificationToken(conn, id);
-    const verifyUrl = `${appOrigin}/api/auth/verify?token=${token}`;
+    const verifyUrl = `${appOrigin}/verify?token=${token}`;
     await sendEmail({ to: email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });
 
     res.status(201).json({ message: 'Verification email sent. Please verify before logging in.', requiresVerification: true });
@@ -301,7 +301,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     if (!user.is_verified) {
       const token = await issueVerificationToken(conn, user.id);
-      const verifyUrl = `${appOrigin}/api/auth/verify?token=${token}`;
+      const verifyUrl = `${appOrigin}/verify?token=${token}`;
       await sendEmail({ to: user.email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });
       return res.status(403).json({ error: 'Email not verified. Verification email sent.' });
     }

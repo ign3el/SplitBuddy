@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSubscription } from '../context/SubscriptionContext';
+import { getBuildVersion } from '../utils/buildInfo';
 import './Auth.css';
 
 type AuthTab = 'login' | 'signup' | 'reset';
@@ -200,6 +201,10 @@ export const Auth = ({ onAuthSuccess }: { onAuthSuccess?: () => void }) => {
             ? 'Already have an account? Switch to Login above.'
             : 'Need an account? Switch to Sign Up above.'}
         </p>
+
+        <div className="build-info">
+          Build: {getBuildVersion()}
+        </div>
       </div>
     </div>
   );

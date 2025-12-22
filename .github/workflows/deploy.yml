@@ -41,4 +41,7 @@ jobs:
             cd /home/${{ secrets.VPS_USERNAME }}/splitbuddy
             git fetch origin main
             git reset --hard origin/main
-            docker compose up -d --build
+            docker compose build --no-cache 
+            docker compose up -d --force-recreate --remove-orphans 
+            # Cleanup old images to prevent disk space issues
+            docker image prune -f

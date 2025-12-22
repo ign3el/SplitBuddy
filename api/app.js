@@ -305,16 +305,19 @@ app.post('/api/auth/login', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     if (!user.is_verified) {
       // Check if a verification email was sent recently (within last 3 minutes)
+      // email_verifications table lacks created_at; approximate created time as expires_at - 30m (token lifetime)
       const [recentTokens] = await conn.query(
-        'SELECT created_at FROM email_verifications WHERE user_id = ? AND used = 0 ORDER BY created_at DESC LIMIT 1',
+        'SELECT expires_at FROM email_verifications WHERE user_id = ? AND used = 0 ORDER BY expires_at DESC LIMIT 1',
         [user.id]
       );
       const recentToken = Array.isArray(recentTokens) && recentTokens.length ? recentTokens[0] : null;
       const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
-      
-      if (recentToken && new Date(recentToken.created_at) > threeMinutesAgo) {
-        // Verification email was sent recently, don't send another one
-        return res.status(429).json({ error: 'Verification email was recently sent. Please check your email or try again in 3 minutes.' });
+      if (recentToken?.expires_at) {
+        const createdApprox = new Date(new Date(recentToken.expires_at).getTime() - 30 * 60 * 1000);
+        if (createdApprox > threeMinutesAgo) {
+          // Verification email was sent recently, don't send another one
+          return res.status(429).json({ error: 'Verification email was recently sent. Please check your email or try again in 3 minutes.' });
+        }
       }
       
       // Send new verification email

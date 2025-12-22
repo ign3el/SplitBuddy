@@ -297,7 +297,8 @@ app.post('/api/auth/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   const conn = await pool.getConnection();
   try {
-    const [rows] = await conn.query('SELECT id, email, name, password_hash, is_verified, created_at FROM users WHERE email = ?', [email]);
+    // Do not select created_at explicitly to support older DBs without this column
+    const [rows] = await conn.query('SELECT id, email, name, password_hash, is_verified FROM users WHERE email = ?', [email]);
     const user = Array.isArray(rows) && rows.length ? rows[0] : null;
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, user.password_hash);
@@ -325,7 +326,8 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
     const [pRows] = await conn.query('SELECT * FROM profiles WHERE user_id = ?', [user.id]);
     const profile = Array.isArray(pRows) && pRows.length ? pRows[0] : null;
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, createdAt: new Date(user.created_at).toISOString() }, profile });
+    const createdAtIso = user.created_at ? new Date(user.created_at).toISOString() : undefined;
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, createdAt: createdAtIso }, profile });
   } catch (e) {
     res.status(500).json({ error: e.message });
   } finally {

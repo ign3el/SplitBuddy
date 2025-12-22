@@ -15,6 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Diagnostic Check
+        run: |
+          if [ -z "${{ secrets.VPS_IP }}" ]; then
+            echo "❌ VPS_IP is EMPTY. Check Environment Secrets."
+            exit 1
+          else
+            echo "✅ VPS_IP is LOADED."
+          fi
       - name: Diagnostic Secret Check
         run: |
           if [[ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]]; then
@@ -30,8 +38,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/splitbuddy
-            git pull origin main
-            docker-compose down
-            docker-compose up -d --build
-            echo "Deployment completed successfully"
+            cd /home/${{ secrets.VPS_USERNAME }}/splitbuddy
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose up -d --build

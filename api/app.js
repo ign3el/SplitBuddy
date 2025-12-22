@@ -303,6 +303,20 @@ app.post('/api/auth/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     if (!user.is_verified) {
+      // Check if a verification email was sent recently (within last 3 minutes)
+      const [recentTokens] = await conn.query(
+        'SELECT created_at FROM email_verifications WHERE user_id = ? AND used = 0 ORDER BY created_at DESC LIMIT 1',
+        [user.id]
+      );
+      const recentToken = Array.isArray(recentTokens) && recentTokens.length ? recentTokens[0] : null;
+      const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+      
+      if (recentToken && new Date(recentToken.created_at) > threeMinutesAgo) {
+        // Verification email was sent recently, don't send another one
+        return res.status(429).json({ error: 'Verification email was recently sent. Please check your email or try again in 3 minutes.' });
+      }
+      
+      // Send new verification email
       const token = await issueVerificationToken(conn, user.id);
       const verifyUrl = `${appOrigin}/verify?token=${token}`;
       await sendEmail({ to: user.email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });

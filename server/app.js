@@ -616,8 +616,15 @@ app.get('/api/auth/verify', async (req, res) => {
     if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).send('Token expired');
     const [uRows] = await conn.query('SELECT email, name FROM users WHERE id = ?', [row.user_id]);
     const user = Array.isArray(uRows) && uRows.length ? uRows[0] : null;
-    await conn.query('UPDATE users SET is_verified = 1 WHERE id = ?', [row.user_id]);
+    
+    // Mark user as verified
+    const updateResult = await conn.query('UPDATE users SET is_verified = 1 WHERE id = ?', [row.user_id]);
+    console.log(`[Email Verification] Updated user ${row.user_id} is_verified status`);
+    
+    // Mark token as used
     await conn.query('UPDATE email_verifications SET used = 1 WHERE token = ?', [token]);
+    console.log(`[Email Verification] Marked token ${token} as used`);
+    
     if (user?.email) {
       const html = buildVerifiedEmail(FRONTEND_URL);
       await sendEmail({ to: user.email, subject: 'Your email is verified', html });

@@ -5,7 +5,6 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      # These now pull directly from your .env file
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
@@ -15,7 +14,6 @@ services:
     networks:
       - ign3el_network
     healthcheck:
-      # Updated to use the variables for the health check itself
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
@@ -40,6 +38,10 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file: .env
+    # ADD THIS: Forces the frontend to wait for a healthy DB before starting
+    depends_on:
+      db:
+        condition: service_healthy
     expose:
       - 80
     networks:

@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: http://${{ secrets.VPS_IP }}
     
     steps:
       - name: Checkout code

@@ -300,8 +300,29 @@ function getCorsOrigin() {
       }
     };
   } else {
-    // In production, use the configured CORS_ORIGIN
-    return CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com';
+    // In production, support multiple allowed origins
+    const allowedOrigins = [
+      CORS_ORIGIN,
+      FRONTEND_URL,
+      'https://www.splitbuddy.ign3el.com',
+      'https://splitbuddy.ign3el.com',
+      'https://dev.ign3el.com'
+    ].filter(Boolean); // Remove undefined/null values
+    
+    return function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`);
+        callback(new Error(`CORS not allowed for origin: ${origin}`));
+      }
+    };
   }
 }
 

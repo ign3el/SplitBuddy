@@ -29,6 +29,7 @@ const {
   JWT_SECRET,
   CORS_ORIGIN,
   COOKIE_DOMAIN,
+  API_PUBLIC_URL,
   MOCK_EMAIL,
   SMTP_HOST,
   SMTP_PORT,
@@ -96,8 +97,10 @@ const brand = {
   bg: '#f0fdf4',
 };
 
-const appOrigin = VERIFY_PUBLIC_URL || RESET_PUBLIC_URL || 'http://localhost:3003';
-console.log('[Email URLs] appOrigin:', appOrigin);
+// Backend API origin for email links (verification and password reset)
+// This should be the backend API URL, not the frontend URL
+const apiOrigin = process.env.API_PUBLIC_URL || process.env.VERIFY_PUBLIC_URL || process.env.RESET_PUBLIC_URL || 'http://localhost:3003';
+console.log('[Email URLs] API Origin:', apiOrigin);
 console.log('[Email URLs] VERIFY_PUBLIC_URL:', VERIFY_PUBLIC_URL);
 console.log('[Email URLs] RESET_PUBLIC_URL:', RESET_PUBLIC_URL);
 
@@ -493,7 +496,7 @@ app.post('/api/auth/signup', async (req, res) => {
     await conn.query('INSERT INTO profiles (user_id, is_pro, scans_used_this_month, max_scans_per_month, month_reset_date) VALUES (?, 0, 0, 5, ?)', [id, new Date()]);
 
     const token = await issueVerificationToken(conn, id);
-    const verifyUrl = `${appOrigin}/api/auth/verify?token=${token}`;
+    const verifyUrl = `${apiOrigin}/api/auth/verify?token=${token}`;
     await sendEmail({ to: email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });
 
     res.status(201).json({ message: 'Verification email sent. Please verify before logging in.', requiresVerification: true });
@@ -539,7 +542,7 @@ app.post('/api/auth/login', async (req, res) => {
       
       // Send new verification email
       const token = await issueVerificationToken(conn, user.id);
-      const verifyUrl = `${appOrigin}/api/auth/verify?token=${token}`;
+      const verifyUrl = `${apiOrigin}/api/auth/verify?token=${token}`;
       await sendEmail({ to: user.email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });
       return res.status(403).json({ error: 'Email not verified. Verification email sent.' });
     }
@@ -594,7 +597,7 @@ app.post('/api/auth/request-reset', async (req, res) => {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
     await conn.query('INSERT INTO password_resets (token, user_id, expires_at, used) VALUES (?, ?, ?, 0)', [token, user.id, expiresAt]);
 
-    const resetUrl = `${appOrigin}/reset?token=${token}`;
+    const resetUrl = `${apiOrigin}/reset?token=${token}`;
     await sendEmail({ to: user.email, subject: 'Reset your SplitBuddy password', html: buildResetEmail(resetUrl) });
     res.json({ ok: true });
   } catch (e) {

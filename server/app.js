@@ -1072,10 +1072,7 @@ if (pool) {
 }
 
 // SERVE FRONTEND: Serve static files from dist folder (for production Docker container)
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Note: __dirname and path are already imported at the top of this file
 
 // Serve static files from dist directory
 app.use(express.static(path.join(__dirname, '../dist')));

@@ -28,6 +28,7 @@ const {
   DB_SSL_REQUIRED,
   JWT_SECRET,
   CORS_ORIGIN,
+  COOKIE_DOMAIN,
   MOCK_EMAIL,
   SMTP_HOST,
   SMTP_PORT,
@@ -439,26 +440,39 @@ app.get('/api/db-test', async (_req, res) => {
   }
 });
 
+// JWT Verify Middleware - Protects private routes
 function authMiddleware(req, res, next) {
-  if (!JWT_SECRET) return res.status(500).json({ error: 'JWT not configured' });
-  
-  // Try to get token from Authorization header first, then from cookie
-  const header = req.headers.authorization || '';
-  let token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  
-  // Fallback to cookie if no Authorization header
-  if (!token && req.cookies && req.cookies.splitbuddy_token) {
-    token = req.cookies.splitbuddy_token;
+  if (!JWT_SECRET) {
+    return res.status(500).json({ error: 'JWT not configured' });
   }
   
-  if (!token) return res.status(401).json({ error: 'Missing token' });
+  // Check for token in HTTP-only cookie first (primary method)
+  let token = req.cookies?.token;
+  
+  // Fallback to Authorization header for API clients
+  if (!token) {
+    const header = req.headers.authorization || '';
+    if (header.startsWith('Bearer ')) {
+      token = header.slice(7);
+    }
+  }
+  
+  // Return 401 if no token found
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: Missing authentication token' });
+  }
   
   try {
+    // Verify and decode the JWT token
     const payload = jwt.verify(token, JWT_SECRET);
-    req.userId = payload.sub;
+    
+    // Attach user data to request object
+    req.user = { id: payload.sub };
+    req.userId = payload.sub; // Keep for backward compatibility
+    
     next();
   } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
   }
 }
 
@@ -531,21 +545,35 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     // Generate JWT token
-    const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    const jwtToken = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
     
-    // Set HTTP-only cookie for additional security
-    res.cookie('splitbuddy_token', token, {
-      httpOnly: true,
+    // Cookie configuration for splitbuddy.ign3el.com domain
+    const cookieOptions = {
+      httpOnly: true, // Prevents JavaScript access (XSS protection)
       secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'lax', // Changed from 'strict' for cross-subdomain compatibility
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
       path: '/'
-    });
+    };
+    
+    // Add domain for production to work across subdomains
+    if (process.env.NODE_ENV === 'production' && COOKIE_DOMAIN) {
+      cookieOptions.domain = COOKIE_DOMAIN; // e.g., '.splitbuddy.ign3el.com'
+    }
+    
+    // Set HTTP-only cookie named 'token'
+    res.cookie('token', jwtToken, cookieOptions);
     
     const [pRows] = await conn.query('SELECT * FROM profiles WHERE user_id = ?', [user.id]);
     const profile = Array.isArray(pRows) && pRows.length ? pRows[0] : null;
     const createdAtIso = user.created_at ? new Date(user.created_at).toISOString() : undefined;
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, createdAt: createdAtIso }, profile });
+    
+    // Also return token in response body for localStorage fallback
+    res.json({ 
+      token: jwtToken, 
+      user: { id: user.id, email: user.email, name: user.name, createdAt: createdAtIso }, 
+      profile 
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   } finally {
@@ -751,13 +779,22 @@ app.get('/api/me', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/auth/logout', authMiddleware, async (req, res) => {
-  // Clear the HTTP-only cookie
-  res.clearCookie('splitbuddy_token', {
+  // Cookie configuration must match the set cookie options
+  const clearOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
-  });
+  };
+  
+  // Add domain if configured
+  if (process.env.NODE_ENV === 'production' && COOKIE_DOMAIN) {
+    clearOptions.domain = COOKIE_DOMAIN;
+  }
+  
+  // Clear the HTTP-only cookie named 'token'
+  res.clearCookie('token', clearOptions);
+  
   res.json({ ok: true, message: 'Logged out successfully' });
 });
 

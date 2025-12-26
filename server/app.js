@@ -1,6 +1,16 @@
 // Express app export for both local and Vercel serverless
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, '..', '.env')
+  : path.join(__dirname, '.env');
+
+dotenv.config({ path: envPath });
+
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';

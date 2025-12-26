@@ -1,6 +1,15 @@
 ﻿// Local development server entry point
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import app from './app.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, '..', '.env')
+  : path.join(__dirname, '.env');
+
+dotenv.config({ path: envPath });
 
 const port = process.env.PORT || 3003;
 

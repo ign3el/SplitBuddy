@@ -712,51 +712,161 @@ app.get('/api/auth/verify', async (req, res) => {
   try {
     const [rows] = await conn.query('SELECT token, user_id, expires_at, used FROM email_verifications WHERE token = ?', [token]);
     const row = Array.isArray(rows) && rows.length ? rows[0] : null;
-    if (!row) return res.status(400).send('Invalid token');
-    if (row.used) return res.status(400).send('Token already used');
-    if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).send('Token expired');
+    
+    // Handle invalid token
+    if (!row) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(400).send(`<!doctype html>
+      <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Invalid Link · SplitBuddy</title>
+      <style>
+        :root { --green:${brand.primary}; --bg:${brand.bg}; --text:${brand.text}; --muted:${brand.muted}; }
+        body { margin:0; padding:32px 16px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
+        .shell { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 14px 60px rgba(16,185,129,0.22); overflow:hidden; text-align:center; }
+        .hero { padding: 30px; background: linear-gradient(135deg, rgba(220,38,38,0.12), rgba(220,38,38,0)); border-bottom:1px solid #e2e8f0; }
+        .brand { font-weight: 800; color: var(--green); font-size: 20px; letter-spacing: -0.2px; }
+        .content { padding: 30px; }
+        h1 { margin: 0 0 12px; font-size: 24px; color: #dc2626; }
+        p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
+        .btn { display:inline-block; background: var(--green); color:#fff; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; margin-top:14px; }
+      </style>
+      </head><body>
+        <div class="shell">
+          <div class="hero"><div class="brand">SplitBuddy</div></div>
+          <div class="content">
+            <h1>Invalid Link</h1>
+            <p>This verification link is invalid or has been removed.</p>
+            <a class="btn" href="${FRONTEND_URL || CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com'}">Go to Login</a>
+          </div>
+        </div>
+      </body></html>`);
+    }
+    
+    // Handle already used token
+    if (row.used) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(400).send(`<!doctype html>
+      <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Already Verified · SplitBuddy</title>
+      <style>
+        :root { --green:${brand.primary}; --bg:${brand.bg}; --text:${brand.text}; --muted:${brand.muted}; }
+        body { margin:0; padding:32px 16px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
+        .shell { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 14px 60px rgba(16,185,129,0.22); overflow:hidden; text-align:center; }
+        .hero { padding: 30px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0)); border-bottom:1px solid #e2e8f0; }
+        .brand { font-weight: 800; color: var(--green); font-size: 20px; letter-spacing: -0.2px; }
+        .content { padding: 30px; }
+        h1 { margin: 0 0 12px; font-size: 24px; }
+        p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
+        .btn { display:inline-block; background: var(--green); color:#fff; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; margin-top:14px; }
+      </style>
+      </head><body>
+        <div class="shell">
+          <div class="hero"><div class="brand">SplitBuddy</div></div>
+          <div class="content">
+            <h1>Already Verified!</h1>
+            <p>Your email has already been verified. You can log in to your account.</p>
+            <a class="btn" href="${FRONTEND_URL || CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com'}">Go to Login</a>
+          </div>
+        </div>
+      </body></html>`);
+    }
+    
+    // Handle expired token
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(400).send(`<!doctype html>
+      <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Link Expired · SplitBuddy</title>
+      <style>
+        :root { --green:${brand.primary}; --bg:${brand.bg}; --text:${brand.text}; --muted:${brand.muted}; }
+        body { margin:0; padding:32px 16px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
+        .shell { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 14px 60px rgba(16,185,129,0.22); overflow:hidden; text-align:center; }
+        .hero { padding: 30px; background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0)); border-bottom:1px solid #e2e8f0; }
+        .brand { font-weight: 800; color: var(--green); font-size: 20px; letter-spacing: -0.2px; }
+        .content { padding: 30px; }
+        h1 { margin: 0 0 12px; font-size: 24px; color: #f59e0b; }
+        p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
+        .btn { display:inline-block; background: var(--green); color:#fff; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; margin-top:14px; }
+      </style>
+      </head><body>
+        <div class="shell">
+          <div class="hero"><div class="brand">SplitBuddy</div></div>
+          <div class="content">
+            <h1>Link Expired</h1>
+            <p>This verification link has expired. Please log in to request a new verification email.</p>
+            <a class="btn" href="${FRONTEND_URL || CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com'}">Go to Login</a>
+          </div>
+        </div>
+      </body></html>`);
+    }
+    
     const [uRows] = await conn.query('SELECT email, name FROM users WHERE id = ?', [row.user_id]);
     const user = Array.isArray(uRows) && uRows.length ? uRows[0] : null;
     
     // Mark user as verified
-    const updateResult = await conn.query('UPDATE users SET is_verified = 1 WHERE id = ?', [row.user_id]);
-    console.log(`[Email Verification] Updated user ${row.user_id} is_verified status`);
+    await conn.query('UPDATE users SET is_verified = 1 WHERE id = ?', [row.user_id]);
+    console.log(`[Email Verification] ✓ User ${row.user_id} verified successfully`);
     
     // Mark token as used
     await conn.query('UPDATE email_verifications SET used = 1 WHERE token = ?', [token]);
-    console.log(`[Email Verification] Marked token ${token} as used`);
+    console.log(`[Email Verification] ✓ Token marked as used`);
     
+    // Send confirmation email
     if (user?.email) {
-      const html = buildVerifiedEmail(FRONTEND_URL);
-      await sendEmail({ to: user.email, subject: 'Your email is verified', html });
+      const html = buildVerifiedEmail(FRONTEND_URL || CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com');
+      await sendEmail({ to: user.email, subject: 'Email Verified - Welcome to SplitBuddy! 🎉', html });
     }
+    
+    // Success page with prominent login button
+    const loginUrl = FRONTEND_URL || CORS_ORIGIN || 'https://www.splitbuddy.ign3el.com';
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!doctype html>
     <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Verified · SplitBuddy</title>
+    <title>Email Verified! · SplitBuddy</title>
     <style>
       :root { --green:${brand.primary}; --bg:${brand.bg}; --text:${brand.text}; --muted:${brand.muted}; }
       body { margin:0; padding:32px 16px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
       .shell { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 18px; box-shadow: 0 14px 60px rgba(16,185,129,0.22); overflow:hidden; text-align:center; }
       .hero { padding: 30px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0)); border-bottom:1px solid #e2e8f0; }
       .brand { font-weight: 800; color: var(--green); font-size: 20px; letter-spacing: -0.2px; }
-      .content { padding: 30px; }
-      h1 { margin: 0 0 12px; font-size: 24px; }
-      p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
-      .btn { display:inline-block; background: var(--green); color:#fff; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; margin-top:14px; }
+      .content { padding: 40px 30px; }
+      .checkmark { width: 64px; height: 64px; margin: 0 auto 20px; background: var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; animation: pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+      @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+      h1 { margin: 0 0 12px; font-size: 28px; color: var(--green); font-weight: 800; }
+      p { margin: 8px 0; color: var(--muted); line-height: 1.6; font-size: 15px; }
+      .btn { display:inline-block; background: var(--green); color:#fff; padding:14px 28px; border-radius:12px; text-decoration:none; font-weight:700; margin-top:24px; font-size:16px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+      .btn:hover { background: #059669; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16,185,129,0.4); }
+      .note { font-size: 13px; color: var(--muted); margin-top: 20px; }
     </style>
     </head><body>
       <div class="shell">
         <div class="hero"><div class="brand">SplitBuddy</div></div>
         <div class="content">
-          <h1>All set!</h1>
-          <p>Your email has been verified. You can now log in and continue.</p>
-          <a class="btn" href="${FRONTEND_URL || 'http://localhost:5173'}">Continue to login</a>
+          <div class="checkmark">✓</div>
+          <h1>Email Verified!</h1>
+          <p>Your email has been successfully verified.<br>You can now log in and start splitting receipts with friends.</p>
+          <a class="btn" href="${loginUrl}">Continue to Login</a>
+          <p class="note">You will be redirected to the login page where you can sign in with your credentials.</p>
         </div>
       </div>
     </body></html>`);
   } catch (e) {
-    res.status(500).send('Server error');
+    console.error('[Email Verification Error]', e);
+    res.status(500).send(`<!doctype html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Error · SplitBuddy</title>
+    <style>
+      body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: #f0fdf4; padding: 32px 16px; text-align: center; color: #0f172a; }
+      .card { max-width: 520px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 18px; box-shadow: 0 14px 60px rgba(16,185,129,0.22); }
+      h1 { color: #dc2626; margin-bottom: 12px; }
+      p { color: #64748b; line-height: 1.6; }
+    </style>
+    </head><body>
+      <div class="card">
+        <h1>Something Went Wrong</h1>
+        <p>We encountered an error while verifying your email. Please try again or contact support.</p>
+      </div>
+    </body></html>`);
   } finally {
     conn.release();
   }

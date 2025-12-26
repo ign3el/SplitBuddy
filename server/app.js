@@ -12,6 +12,7 @@ const envPath = process.env.NODE_ENV === 'production'
 dotenv.config({ path: envPath });
 
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { getPool } from './db.js';
@@ -288,6 +289,7 @@ async function ensureSchema() {
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 // CORS configuration: allow localhost, 127.0.0.1, and network IPs in dev; strict in prod
 function getCorsOrigin() {
@@ -439,9 +441,18 @@ app.get('/api/db-test', async (_req, res) => {
 
 function authMiddleware(req, res, next) {
   if (!JWT_SECRET) return res.status(500).json({ error: 'JWT not configured' });
+  
+  // Try to get token from Authorization header first, then from cookie
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  let token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  
+  // Fallback to cookie if no Authorization header
+  if (!token && req.cookies && req.cookies.splitbuddy_token) {
+    token = req.cookies.splitbuddy_token;
+  }
+  
   if (!token) return res.status(401).json({ error: 'Missing token' });
+  
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     req.userId = payload.sub;
@@ -518,7 +529,19 @@ app.post('/api/auth/login', async (req, res) => {
       await sendEmail({ to: user.email, subject: 'Verify your SplitBuddy email', html: buildVerificationEmail(verifyUrl) });
       return res.status(403).json({ error: 'Email not verified. Verification email sent.' });
     }
+    
+    // Generate JWT token
     const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    
+    // Set HTTP-only cookie for additional security
+    res.cookie('splitbuddy_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'
+    });
+    
     const [pRows] = await conn.query('SELECT * FROM profiles WHERE user_id = ?', [user.id]);
     const profile = Array.isArray(pRows) && pRows.length ? pRows[0] : null;
     const createdAtIso = user.created_at ? new Date(user.created_at).toISOString() : undefined;
@@ -725,6 +748,17 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   } finally {
     conn.release();
   }
+});
+
+app.post('/api/auth/logout', authMiddleware, async (req, res) => {
+  // Clear the HTTP-only cookie
+  res.clearCookie('splitbuddy_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
+  });
+  res.json({ ok: true, message: 'Logged out successfully' });
 });
 
 app.put('/api/profiles', authMiddleware, async (req, res) => {

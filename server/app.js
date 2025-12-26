@@ -3,10 +3,10 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
-import express from 'express';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// CRITICAL: Load .env FIRST before any other imports that use env vars
 // Check root first (for aaPanel/production), then current folder (for local dev)
 const rootEnv = path.resolve(__dirname, '..', '.env');
 const localEnv = path.resolve(__dirname, '.env');
@@ -14,7 +14,10 @@ const finalPath = fs.existsSync(rootEnv) ? rootEnv : localEnv;
 
 dotenv.config({ path: finalPath });
 console.log(`[Config] Loading environment from: ${finalPath}`);
+console.log(`[Config] DB_HOST loaded: ${process.env.DB_HOST || 'NOT SET'}`);
 
+// Now import other modules that depend on env vars
+import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';

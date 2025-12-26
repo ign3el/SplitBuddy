@@ -58,6 +58,3 @@ export function getPool() {
   }
   return pooled;
 }
-
-// Optional named export for modules expecting `pool`
-export const pool = getPool();

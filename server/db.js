@@ -20,6 +20,8 @@ function createMysqlPool() {
   const cfg = resolveDbEnv();
   const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
   
+  console.log(`[DB] Creating pool with host: ${cfg.host}:${cfg.port}`);
+  
   try {
     const poolConfig = {
       host: cfg.host,
@@ -47,11 +49,15 @@ function createMysqlPool() {
   }
 }
 
-const pooled = globalThis.__sbSrvMysqlPool ?? (globalThis.__sbSrvMysqlPool = createMysqlPool());
+// Lazy initialization - pool is only created when first accessed
+let pooled = null;
 
 export function getPool() {
+  if (!pooled) {
+    pooled = createMysqlPool();
+  }
   return pooled;
 }
 
 // Optional named export for modules expecting `pool`
-export const pool = pooled;
+export const pool = getPool();

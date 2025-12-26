@@ -1,15 +1,19 @@
 // Express app export for both local and Vercel serverless
-import dotenv from 'dotenv';
-import path from 'path';
 import { fileURLToPath } from 'url';
+import path from 'path';
+import dotenv from 'dotenv';
+import fs from 'fs';
 import express from 'express';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envPath = process.env.NODE_ENV === 'production' 
-  ? path.join(__dirname, '..', '.env')
-  : path.join(__dirname, '.env');
 
-dotenv.config({ path: envPath });
+// Check root first (for aaPanel/production), then current folder (for local dev)
+const rootEnv = path.resolve(__dirname, '..', '.env');
+const localEnv = path.resolve(__dirname, '.env');
+const finalPath = fs.existsSync(rootEnv) ? rootEnv : localEnv;
+
+dotenv.config({ path: finalPath });
+console.log(`[Config] Loading environment from: ${finalPath}`);
 
 import cors from 'cors';
 import cookieParser from 'cookie-parser';

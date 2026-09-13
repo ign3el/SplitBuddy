@@ -37,8 +37,8 @@ server/
    NODE_ENV=development
    DB_HOST=localhost
    DB_PORT=3306
-   DB_USER=ign3el
-   DB_PASSWORD=Bhilai-9
+   DB_USER=your-db-user
+   DB_PASSWORD=your-local-db-password
    DB_NAME=splitbuddy
    DB_SSL=false  # Disabled for localhost
    
@@ -46,8 +46,10 @@ server/
    PORT=3003
    
    EMAIL_SERVICE=gmail
-   EMAIL_USER=sahtesham@gmail.com
-   EMAIL_PASSWORD=jpvc hxon zmvr orwb
+   EMAIL_USER=your-email@gmail.com
+   # Gmail App Password (16 chars, shown in 4 space-separated groups).
+   # Google Account -> Security -> App passwords. Never a real account password.
+   EMAIL_PASSWORD=xxxx xxxx xxxx xxxx
    EMAIL_FROM="SplitBuddy <info@ign3el.com>"
    MOCK_EMAIL=false  # Or true to log instead of sending
    ```
@@ -97,7 +99,7 @@ server/
    PORT=3003
    
    EMAIL_SERVICE=gmail
-   EMAIL_USER=sahtesham@gmail.com
+   EMAIL_USER=your-email@gmail.com
    EMAIL_PASSWORD=your_gmail_app_password
    EMAIL_FROM="SplitBuddy <info@ign3el.com>"
    MOCK_EMAIL=false

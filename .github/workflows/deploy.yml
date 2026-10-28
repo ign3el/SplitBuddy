@@ -6,42 +6,64 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment:
       name: production
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Diagnostic Check
-        run: |
-          if [ -z "${{ secrets.VPS_IP }}" ]; then
-            echo "❌ VPS_IP is EMPTY. Check Environment Secrets."
-            exit 1
-          else
-            echo "✅ VPS_IP is LOADED."
-          fi
-      - name: Diagnostic Secret Check
-        run: |
-          if [[ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]]; then
-            echo "FAILED: The secret is NOT being read. Check Environment settings."
-            exit 1
-          else
-            echo "SUCCESS: The secret is found."
-          fi
+      # SplitBuddy runs on ign3elapp as an aaPanel Node project (node index.js on
+      # :3003, behind nginx), not in Docker. Express serves ../dist, which is built
+      # on the VPS and is not tracked in git.
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
           script: |
-            cd /home/${{ secrets.VPS_USERNAME }}/splitbuddy
+            export PATH=/www/server/nodejs/v24.12.0/bin:$PATH
+            APP=/www/wwwroot/splitbuddy
+            SERVER_DIR=$APP/server
+            cd "$APP"
+
+            OLD=$(git rev-parse HEAD)
             git fetch origin main
-            git reset --hard origin/main
-            docker compose build --no-cache 
-            docker compose up -d --force-recreate --remove-orphans 
-            # Cleanup old images to prevent disk space issues
-            docker image prune -f
+            git merge --ff-only origin/main
+            NEW=$(git rev-parse HEAD)
+            echo "Deploying $OLD -> $NEW"
+
+            CHANGED=$(git diff --name-only "$OLD" "$NEW")
+
+            # Backend deps only when the server lockfile changed (node_modules is owned by www).
+            if echo "$CHANGED" | grep -q '^server/package'; then
+              (cd "$SERVER_DIR" && sudo -u www env PATH="$PATH" npm ci --omit=dev)
+            fi
+
+            # Frontend: rebuild dist when anything outside server/, workflows and docs changed.
+            if [ ! -d dist ] || echo "$CHANGED" | grep -qvE '^(server/|\.github/|.*\.md$)'; then
+              npm ci
+              npm run build
+            fi
+
+            # Restart the aaPanel Node project: stop whatever runs from server/, then start it again.
+            for p in $(pgrep -x node); do
+              if [ "$(sudo readlink /proc/$p/cwd)" = "$SERVER_DIR" ]; then sudo kill "$p"; fi
+            done
+            sleep 2
+            sudo -u www bash /www/server/nodejs/vhost/scripts/splitbuddy_dev.sh
+
+            # Fail the run if the app does not come back.
+            for i in $(seq 1 20); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3003/ || true)
+              if [ "$code" = "200" ]; then echo "App is up (HTTP 200)"; exit 0; fi
+              sleep 2
+            done
+            echo "App did not return 200 after restart" >&2
+            exit 1

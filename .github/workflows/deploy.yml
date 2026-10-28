@@ -53,10 +53,14 @@ jobs:
             fi
 
             # Restart the aaPanel Node project: stop whatever runs from server/, then start it again.
-            for p in $(pgrep -x node); do
-              if [ "$(sudo readlink /proc/$p/cwd)" = "$SERVER_DIR" ]; then sudo kill "$p"; fi
+            # The process name is "MainThread", so match on working directory, not on "node".
+            for d in /proc/[0-9]*; do
+              if [ "$(sudo readlink "$d/cwd" 2>/dev/null)" = "$SERVER_DIR" ]; then sudo kill "${d#/proc/}" || true; fi
             done
-            sleep 2
+            for i in $(seq 1 15); do
+              ss -ltn | grep -q ':3003 ' || break
+              sleep 1
+            done
             sudo -u www bash /www/server/nodejs/vhost/scripts/splitbuddy_dev.sh
 
             # Fail the run if the app does not come back.
